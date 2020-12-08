@@ -1,0 +1,14 @@
+Metadata-Version: 1.1
+Name: abcplus
+Version: 0.1.0
+Summary: An amplified version of abc for Abstract Base Classes plus more
+Home-page: https://www.github.com/jimbobhickville/abcplus
+Author: Greg Hill
+Author-email: jimbobhickville@gmail.com
+License: UNKNOWN
+Description: UNKNOWN
+Platform: UNKNOWN
+Classifier: Development Status :: 3 - Alpha
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python

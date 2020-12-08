@@ -1,0 +1,10 @@
+Metadata-Version: 1.0
+Name: serverfiles
+Version: 0.3.0
+Summary: An utility that accesses files on a HTTP server and stores them locally for reuse.
+Home-page: https://github.com/biolab/serverfiles
+Author: Bioinformatics Laboratory, FRI UL
+Author-email: marko.toplak@fri.uni-lj.si
+License: UNKNOWN
+Description: UNKNOWN
+Platform: UNKNOWN

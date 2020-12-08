@@ -1,0 +1,121 @@
+"""
+Test WidgetRegistry.
+"""
+import logging
+from operator import attrgetter
+
+import unittest
+from orangecanvas.registry import InputSignal, OutputSignal
+
+from ..base import WidgetRegistry
+from .. import description
+from ..utils import category_from_package_globals, widget_from_module_globals
+
+
+class TestRegistry(unittest.TestCase):
+    def setUp(self):
+        logging.basicConfig()
+        from . import set_up_modules
+        set_up_modules()
+
+        from . import constants
+        from . import operators
+        self.constants = constants
+        self.operators = operators
+
+    def tearDown(self):
+        from . import tear_down_modules
+        tear_down_modules()
+
+    def test_registry_const(self):
+        reg = WidgetRegistry()
+
+        const_cat = category_from_package_globals(self.constants.__name__)
+        reg.register_category(const_cat)
+
+        zero_desc = widget_from_module_globals(self.constants.zero.__name__)
+
+        reg.register_widget(zero_desc)
+
+        self.assertTrue(reg.has_widget(zero_desc.qualified_name))
+        self.assertSequenceEqual(reg.widgets(self.constants.NAME), [zero_desc])
+        self.assertIs(reg.widget(zero_desc.qualified_name), zero_desc)
+
+        # ValueError adding a description with the same qualified name
+        with self.assertRaises(ValueError):
+            desc = description.WidgetDescription(
+                name="A name",
+                id=zero_desc.id,
+                qualified_name=zero_desc.qualified_name
+            )
+            reg.register_widget(desc)
+
+        one_desc = widget_from_module_globals(self.constants.one)
+        reg.register_widget(one_desc)
+
+        self.assertTrue(reg.has_widget(one_desc.qualified_name))
+        self.assertIs(reg.widget(one_desc.qualified_name), one_desc)
+
+        self.assertSetEqual(set(reg.widgets(self.constants.NAME)),
+                            set([zero_desc, one_desc]))
+
+        op_cat = category_from_package_globals(self.operators.__name__)
+        reg.register_category(op_cat)
+
+        self.assertTrue(reg.has_category(op_cat.name))
+        self.assertIs(reg.category(op_cat.name), op_cat)
+        self.assertSetEqual(set(reg.categories()),
+                            set([const_cat, op_cat]))
+
+        add_desc = widget_from_module_globals(self.operators.add)
+        reg.register_widget(add_desc)
+
+        self.assertTrue(reg.has_widget(add_desc.qualified_name))
+        self.assertIs(reg.widget(add_desc.qualified_name), add_desc)
+        self.assertSequenceEqual(reg.widgets(self.operators.NAME), [add_desc])
+
+        sub_desc = widget_from_module_globals(self.operators.sub)
+        reg.register_widget(sub_desc)
+
+        # Test copy constructor
+        reg1 = WidgetRegistry(reg)
+        self.assertTrue(reg1.has_category(const_cat.name))
+        self.assertTrue(reg1.has_category(op_cat.name))
+        self.assertSequenceEqual(reg.categories(), reg1.categories())
+
+        # Test 'widgets()'
+        self.assertSetEqual(set(reg1.widgets()),
+                            set([zero_desc, one_desc, add_desc, sub_desc]))
+
+        # Test ordering by priority
+        self.assertSequenceEqual(
+             reg.widgets(op_cat.name),
+             sorted([add_desc, sub_desc],
+                    key=attrgetter("priority"))
+        )
+
+        self.assertTrue(all(isinstance(desc.priority, int)
+                            for desc in [one_desc, zero_desc, sub_desc,
+                                         add_desc])
+                        )
+
+    def test_input_signal(self):
+        isig_1 = InputSignal("A", str, "aa", id="sig-a")
+        isig_2 = InputSignal("A", 'builtins.str', "aa", id="sig-a")
+        self.assertTupleEqual(isig_1.types, isig_2.types)
+        self.assertTupleEqual(isig_1.types, ('builtins.str',))
+        isig_1 = InputSignal("A", (str, int), "aa", id="sig-a")
+        isig_2 = InputSignal("A", ('builtins.str', "builtins.int",), "aa",
+                             id="sig-a")
+        self.assertTupleEqual(isig_1.types, isig_2.types)
+
+    def test_output_signal(self):
+        osig_1 = OutputSignal("A", str, id="sig-a")
+        osig_2 = OutputSignal("A", 'builtins.str', id="sig-a")
+        self.assertTupleEqual(osig_1.types, osig_2.types)
+        self.assertTupleEqual(osig_1.types, ('builtins.str',))
+        osig_1 = OutputSignal("A", (str, int), id="sig-a")
+        osig_2 = OutputSignal("A", ('builtins.str', "builtins.int",),
+                              id="sig-a")
+        self.assertTupleEqual(osig_1.types, osig_2.types)
+        self.assertTupleEqual(osig_1.types, ('builtins.str', "builtins.int",))

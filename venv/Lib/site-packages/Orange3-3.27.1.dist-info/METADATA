@@ -1,0 +1,100 @@
+Metadata-Version: 2.0
+Name: Orange3
+Version: 3.27.1
+Summary: Orange, a component-based data mining framework.
+Home-page: http://orange.biolab.si/
+Author: Bioinformatics Laboratory, FRI UL
+Author-email: info@biolab.si
+License: GPLv3+
+Keywords: data mining,machine learning,artificial intelligence
+Platform: UNKNOWN
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: X11 Applications :: Qt
+Classifier: Environment :: Console
+Classifier: Environment :: Plugins
+Classifier: Programming Language :: Python
+Classifier: License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)
+Classifier: Operating System :: POSIX
+Classifier: Operating System :: Microsoft :: Windows
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Topic :: Scientific/Engineering :: Visualization
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Intended Audience :: Education
+Classifier: Intended Audience :: Science/Research
+Classifier: Intended Audience :: Developers
+Description-Content-Type: text/markdown
+Requires-Dist: AnyQt (>=0.0.11)
+Requires-Dist: PyQt5 (!=5.15.1,>=5.12)
+Requires-Dist: PyQtWebEngine (>=5.12)
+Requires-Dist: baycomp (>=1.0.2)
+Requires-Dist: bottleneck (>=1.0.0)
+Requires-Dist: chardet (>=3.0.2)
+Requires-Dist: docutils
+Requires-Dist: httpx (~=0.14.0)
+Requires-Dist: joblib (>=0.9.4)
+Requires-Dist: keyring
+Requires-Dist: keyrings.alt
+Requires-Dist: matplotlib (>=2.0.0)
+Requires-Dist: networkx
+Requires-Dist: numpy (>=1.16.0)
+Requires-Dist: openTSNE (>=0.4.3)
+Requires-Dist: openpyxl
+Requires-Dist: orange-canvas-core (>=0.1.18,<0.2a)
+Requires-Dist: orange-widget-base (>=4.8.1)
+Requires-Dist: pandas
+Requires-Dist: pip (>=9.0)
+Requires-Dist: pyqtgraph (>=0.11.0)
+Requires-Dist: python-louvain (>=0.13)
+Requires-Dist: pyyaml
+Requires-Dist: requests
+Requires-Dist: scikit-learn (!=0.23.0,>=0.22.0)
+Requires-Dist: scipy (>=0.16.1)
+Requires-Dist: serverfiles
+Requires-Dist: setuptools (>=36.3)
+Requires-Dist: xlrd (>=0.9.2)
+Requires-Dist: xlsxwriter
+Requires-Dist: typing; python_version<="3.4"
+
+Orange 3
+========
+
+[Orange] is a component-based data mining software. It includes a range of data
+visualization, exploration, preprocessing and modeling techniques. It can be
+used through a nice and intuitive user interface or, for more advanced users,
+as a module for the Python programming language.
+
+This is the latest version of Orange (for Python 3). The deprecated version of
+Orange 2.7 (for Python 2.7) is still available ([binaries] and [sources]).
+
+[Orange]: https://orange.biolab.si/
+[binaries]: https://orange.biolab.si/orange2/
+[sources]: https://github.com/biolab/orange2
+
+Installing with pip
+-------------------
+
+To install Orange with pip, run the following.
+
+    # Install some build requirements via your system's package manager
+    sudo apt install virtualenv build-essential python3-dev
+
+    # Create a separate Python environment for Orange and its dependencies ...
+    virtualenv --python=python3 --system-site-packages orange3venv
+    # ... and make it the active one
+    source orange3venv/bin/activate
+
+    # Install Orange
+    pip install orange3
+
+Starting Orange GUI
+-------------------
+
+To start Orange GUI from the command line, run:
+
+    orange-canvas
+    # or
+    python3 -m Orange.canvas
+
+Append `--help` for a list of program options.
+
+

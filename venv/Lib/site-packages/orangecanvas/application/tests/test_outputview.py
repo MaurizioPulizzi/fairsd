@@ -1,0 +1,142 @@
+import sys
+import multiprocessing.pool
+
+from datetime import datetime
+from threading import current_thread
+
+from AnyQt.QtCore import Qt, QThread, QTimer, QCoreApplication, QEvent
+from ...gui.test import QAppTestCase
+
+from ..outputview import OutputView, TextStream, ExceptHook
+
+
+class TestOutputView(QAppTestCase):
+    def test_outputview(self):
+        output = OutputView()
+        output.show()
+
+        line1 = "A line \n"
+        line2 = "A different line\n"
+        output.write(line1)
+        self.assertEqual(output.toPlainText(), line1)
+
+        output.write(line2)
+        self.assertEqual(output.toPlainText(), line1 + line2)
+
+        output.clear()
+        self.assertEqual(output.toPlainText(), "")
+
+        output.writelines([line1, line2])
+        self.assertEqual(output.toPlainText(), line1 + line2)
+
+        output.setMaximumLines(5)
+
+        def advance():
+            now = datetime.now().strftime("%c\n")
+            output.write(now)
+
+            text = output.toPlainText()
+            self.assertLessEqual(len(text.splitlines()), 5)
+
+        timer = QTimer(output, interval=25)
+        timer.timeout.connect(advance)
+        timer.start()
+        self.qWait(100)
+        timer.stop()
+
+    def test_formatted(self):
+        output = OutputView()
+        output.show()
+
+        output.write("A sword day, ")
+        with output.formatted(color=Qt.red) as f:
+            f.write("a red day...\n")
+
+            with f.formatted(color=Qt.green) as f:
+                f.write("Actually sir, orcs bleed green.\n")
+
+        bold = output.formatted(weight=100, underline=True)
+        bold.write("Shutup")
+        self.qWait()
+
+    def test_threadsafe(self):
+        output = OutputView()
+        output.resize(500, 300)
+        output.show()
+
+        blue_formater = output.formatted(color=Qt.blue)
+        red_formater = output.formatted(color=Qt.red)
+
+        correct = []
+
+        def check_thread(*args):
+            correct.append(QThread.currentThread() == self.app.thread())
+
+        blue = TextStream()
+        blue.stream.connect(blue_formater.write)
+        blue.stream.connect(check_thread)
+
+        red = TextStream()
+        red.stream.connect(red_formater.write)
+        red.stream.connect(check_thread)
+
+        def printer(i):
+            if i % 12 == 0:
+                fizzbuz = "fizzbuz"
+            elif i % 4 == 0:
+                fizzbuz = "buz"
+            elif i % 3 == 0:
+                fizzbuz = "fizz"
+            else:
+                fizzbuz = str(i)
+
+            if i % 2:
+                writer = blue
+            else:
+                writer = red
+
+            writer.write("Greetings from thread {0}. "
+                         "This is {1}\n".format(current_thread().name,
+                                                fizzbuz))
+
+        pool = multiprocessing.pool.ThreadPool(100)
+        res = pool.map_async(printer, range(10000))
+        self.qWait()
+        res.wait()
+
+        # force all pending enqueued emits
+        QCoreApplication.sendPostedEvents(blue, QEvent.MetaCall)
+        QCoreApplication.sendPostedEvents(red, QEvent.MetaCall)
+        self.app.processEvents()
+
+        self.assertTrue(all(correct))
+        self.assertEqual(len(correct), 10000)
+        pool.close()
+
+    def test_excepthook(self):
+        output = OutputView()
+        output.resize(500, 300)
+        output.show()
+
+        red_formater = output.formatted(color=Qt.red)
+
+        red = TextStream()
+        red.stream.connect(red_formater.write)
+
+        hook = ExceptHook(stream=red)
+
+        def raise_exception(i):
+            try:
+                if i % 2 == 0:
+                    raise ValueError("odd")
+                else:
+                    raise ValueError("even")
+            except Exception:
+                # explicitly call hook (Thread class has it's own handler)
+                hook(*sys.exc_info())
+
+        pool = multiprocessing.pool.ThreadPool(10)
+        res = pool.map_async(raise_exception, range(100))
+        self.qWait(100)
+        res.wait()
+        pool.close()
