@@ -28,8 +28,6 @@ class QualityFunction(ABC):
         -------
         double
             Real number indicating rhe calculated quality.
-            :param description:
-            :param task:
         """
         pass
 
