@@ -6,7 +6,7 @@ from sklearn.metrics import accuracy_score
 #import numpy as np
 '''author: Maurizio'''
 
-import DiscriminatedSubgroupsDiscovery as dsd
+import fairsd.DiscriminatedSubgroupsDiscovery as dsd
 
 
 
@@ -43,7 +43,7 @@ task=dsd.SubgroupDiscoveryTask(
 
 
 
-result_set=dsd.BeamSearch(beam_width=10).execute(task)
+result_set=dsd.DSSD(beam_width=10).execute(task)
 
 print("Result:")
 print(" QUALITY              DESCRIPTION")
