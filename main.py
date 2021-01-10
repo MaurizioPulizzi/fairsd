@@ -6,7 +6,7 @@ from sklearn.metrics import accuracy_score
 #import numpy as np
 '''author: Maurizio'''
 
-import fairsd.DiscriminatedSubgroupsDiscovery as dsd
+import fairsd.subgroupdiscovery as dsd
 
 
 
