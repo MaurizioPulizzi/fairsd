@@ -52,29 +52,6 @@ class EqualOpportunity(QualityFunction):
         return (tp_c / p_c) - (tp_sg/p_sg)
 
 
-class StandardQF(QualityFunction):
-    """Standard quality function."""
-    def __init__(self, a):
-        """
-        :param a: double
-        """
-        self.a = a
-
-    def evaluate(self, description, task):
-        N = task.dataset_size
-        p = task.dataset_positive_target
-        data = task.data
-        target_attr = task.target.target_attribute
-        target_val = task.target.target_value
-        subset = data[description.to_boolean_array(data)]
-        N_sg = subset.shape[0]
-        p_sg = subset[(subset[target_attr] == target_val)].shape[0]
-
-        N_sg_correct = 1 if N_sg == 0 else N_sg
-
-        return ((N_sg / N) ** self.a) * ((p_sg / N_sg_correct) - (p / N)), N_sg
-
-
 class BinaryTarget:
     """Contains the target for the subgroup discovery task.
 
