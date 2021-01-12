@@ -439,7 +439,7 @@ class SubgroupDiscoveryTask:
         if y_pred is not None:
             self.data['y_pred'] = y_pred
 
-        self.target= BinaryTarget('y_true', 'y_pred', target_value=1) ##################################### attualmente target_value non viene usato
+        self.target= BinaryTarget('y_true', 'y_pred', target_value=1) ######### currently target_value is not used
 
         if qf == 'equal_opportunity_difference':
             self.qf = EqualOpportunity()

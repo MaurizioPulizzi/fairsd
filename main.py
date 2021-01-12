@@ -27,10 +27,9 @@ print("-------------------------------------------"+"\n")
 
 
 task=dsd.SubgroupDiscoveryTask(dataset, y_true, y_pred)
-
-
-
 result_set=dsd.BeamSearch(beam_width=10).execute(task)
+
+
 
 print("Result:")
 print(" QUALITY              DESCRIPTION")
