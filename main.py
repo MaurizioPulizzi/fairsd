@@ -22,28 +22,15 @@ print("ACCURACY OF THE CLASSIFIER:")
 print(accuracy_score(y_true,y_pred))
 print("-------------------------------------------"+"\n")
 
-dataset['y_true'] = y_true
-dataset['y_pred'] = y_pred
+
 #dataset=dataset.head(10)
 
-target= dsd.BinaryTarget(target_attribute='y_true',dataset=dataset, predicted_target_attr='y_pred', target_value=True)
 
-search_space=dsd.SearchSpace(dataset, ignore=['y_true', 'y_pred', 'fnlwgt', 'education'])
-
-discretizer=dsd.Discretizer(discretization_type='mdlp', target='y_true')
-
-task=dsd.SubgroupDiscoveryTask(
-        dataset,
-        target,
-        search_space,
-        discretizer =discretizer,
-        qf=dsd.EqualOpportunity(),
-        min_support=250,
-        result_set_size=10)
+task=dsd.SubgroupDiscoveryTask(dataset, y_true, y_pred)
 
 
 
-result_set=dsd.DSSD(beam_width=10).execute(task)
+result_set=dsd.BeamSearch(beam_width=10).execute(task)
 
 print("Result:")
 print(" QUALITY              DESCRIPTION")

@@ -6,7 +6,6 @@ from Orange.data.pandas_compat import table_from_frame
 import pandas as pd
 from abc import ABC, abstractmethod
 
-
 class QualityFunction(ABC):
     """Abstract class.
 
@@ -35,9 +34,9 @@ class QualityFunction(ABC):
 class EqualOpportunity(QualityFunction):
     def evaluate(self, description, task):
         data = task.data
-        target_attr = task.target.target_attribute
+        target_attr = task.target.y_true
         target_val = task.target.target_value
-        pred_attr = task.target.predicted_target_attr
+        pred_attr = task.target.y_pred
 
         p_subset = data[description.to_boolean_array(data) & (data[target_attr] == target_val)]
         p_sg = p_subset.shape[0]
@@ -59,34 +58,23 @@ class BinaryTarget:
     the true value. In this way also if the target is nominal, it will still be treated as a boolean.
     """
 
-    def __init__(self, target_attribute, dataset, predicted_target_attr=None, target_value=False):
+    def __init__(self, y_true, y_pred=None, target_value=False):
         """
         Parameters
         ----------
-        target_attribute : string
+        y_true : string
             Contains the label of the target.
         dataset: pandas.DataFrame
             The dataset is required because it will be checked if the others parameters are coherent
             (present inside the dataset).
-        predicted_target_attr: String, optional
+        y_pred: String, optional
             Contains the label of the predicted attribute.
         target_value: bool or String, optional
 
         """
 
-        #check target attribute
-        if target_attribute not in dataset.columns:
-            raise RuntimeError('target_attribute is not present in the dataset')
-        #check target attribute
-        if target_value not in dataset[target_attribute].unique():
-            raise RuntimeError('No tuple in the dataset has the selected target value')
-
-        # check predicted target attribute
-        if predicted_target_attr is not None and predicted_target_attr not in dataset.columns:
-            raise RuntimeError('predicted_target_attr is not present in the dataset')
-
-        self.target_attribute = target_attribute
-        self.predicted_target_attr = predicted_target_attr
+        self.y_true = y_true
+        self.y_pred = y_pred
         self.target_value = target_value
 
 
@@ -275,32 +263,51 @@ class SearchSpace:
         will contain all possible  numeric selectors.
     """
 
-    def __init__(self, dataset, ignore=None):
+    def __init__(self, dataset, ignore=None, nominal_features=None, numeric_features=None):
         """
         :param dataset : pandas.DataFrame
         :param ignore : list of String(s)
             list the attributes to not take into consideration for creating the search space.
+        :param nominal_features : list that contain a subgroup of nominal features
+        :param numeric_features : list that contain a subgroup of numeric features
 
         Notes
         -----
+        The type of features not present in numeric_features and in nominal_features will be deduced based on the attributes
+
         In this implementation all the numeric selectors created and inserted into the search space
         will be to discretize
         """
         if ignore is None:
             ignore = []
+        if nominal_features is None:
+            nominal_features = []
+        if numeric_features is None:
+            numeric_features = []
         self.nominal_selectors = []
         self.numeric_selectors = []
         # create nominal selectors
-        dtypes_subs = dataset.select_dtypes(exclude=['number'])
-        for col in dtypes_subs.columns:
+        #nominal features with explicit type phassed
+        for col in nominal_features:
             if col not in ignore:
                 values = dataset[col].unique()
                 for x in values:
                     self.nominal_selectors.append(Selector(col, attribute_value=x))
+        #nominal features without explicit type phassed
+        dtypes_subs = dataset.select_dtypes(exclude=['number'])
+        for col in dtypes_subs.columns:
+            if col not in ignore + nominal_features + numeric_features:
+                values = dataset[col].unique()
+                for x in values:
+                    self.nominal_selectors.append(Selector(col, attribute_value=x))
+
         # numerical selectors
+        for col in numeric_features:
+            if col not in ignore:
+                self.numeric_selectors.append(Selector(col, to_discretize=True, is_numeric=True))
         dtypes_subs = dataset.select_dtypes(include=['number'])
         for col in dtypes_subs.columns:
-            if col not in ignore:
+            if col not in ignore + nominal_features + numeric_features:
                 self.numeric_selectors.append(Selector(col, to_discretize=True, is_numeric=True))
 
     def extract_search_space(self, dataset, discretizer, current_description=None):
@@ -318,7 +325,7 @@ class SearchSpace:
 
         Rreturns
         --------
-        list of Selector(s)
+        list of Selectors
             the subset of the search space to explore
 
         Notes
@@ -406,20 +413,46 @@ class Discretizer:
 
 
 class SubgroupDiscoveryTask:
-    """ Capsulates all parameters required to perform standard subgroup discovery."""
+    def __init__(self,
+            X, # pandas dataframe or numpy array with features
+            y_true, # numpy array, pandas dataframe, or pandas Series with ground truth labels
+            y_pred = None, # numpy array, pandas dataframe, or pandas Series with classifier's predicted labels
+            feature_names=None, # optional, list with column names in case users supply a numpy array X
+            nominal_features = None, #optional, list of nominal features
+            numeric_features = None, #optional, list of nominal features
+            qf='equal_opportunity_difference', # str or callable (see my comment `Fairlearn integration')
+            discretizer='mdlp', # str or Discretizer object
+            result_set_size=10,
+            depth=3,
+            min_quality=0.1,
+            min_support=250
+        ):
 
-    def __init__(self, data, target, search_space, qf, discretizer, result_set_size=10, depth=3, min_quality=0, min_support=0):
-        self.data = data
-        self.target = target
-        self.search_space = search_space
-        self.discretizer = discretizer
-        self.qf = qf
+        if isinstance(X, np.ndarray):
+            if feature_names is None:
+                raise RuntimeError('Since X is a Numpy array, the feature_names parameter must contain the column names of the features')
+            self.data = pd.DataFrame(X, feature_names)
+        else:
+            self.data = X
+        self.search_space = SearchSpace(self.data, None, nominal_features, numeric_features)
+        self.data['y_true'] = y_true
+        if y_pred is not None:
+            self.data['y_pred'] = y_pred
+
+        self.target= BinaryTarget('y_true', 'y_pred', target_value=1) ##################################### attualmente target_value non viene usato
+
+        if qf == 'equal_opportunity_difference':
+            self.qf = EqualOpportunity()
+        #elif:
+        else:
+            raise RuntimeError('Quality function not known')
+
+        self.discretizer = Discretizer(discretization_type=discretizer, target='y_true')
+
         self.result_set_size = result_set_size
         self.depth = depth
         self.min_quality = min_quality
         self.min_support = min_support
-        self.dataset_size=data.shape[0] #to remove
-        self.dataset_positive_target= data[(data[target.target_attribute]==target.target_value)].shape[0] # to remove
 
 
 class BeamSearch:
@@ -486,85 +519,4 @@ class BeamSearch:
                 elif ll[0] > subgroups[0][0]:
                     heappop(subgroups)
                     heappush(subgroups,(ll[0],ll[1].__repr__()))
-        return subgroups
-
-
-class DSSD:
-    """ignore this class for now, it is incomplete and contains errors"""
-
-    def __init__(self, beam_width=20, alpha=0.3):
-        """
-        :param beam_width : int
-        :param alpha : double, 0 < alpha < 1
-        """
-        self.beam_width = beam_width
-        self.a=alpha
-
-    def execute(self, task):
-        """
-        This method execute the Beam Search
-
-        :param task : SubgroupDiscoveryTask
-        :return: list of tuples <double, string>
-            each tuple in the list will contain: <quality, subgroup description>
-
-        Notes
-        -----
-        The list_of_beam variable is: a list of list of tuples. The i-th element of list_of_beam, at the end,
-        will contain the most interesting descriptions formed by i descriptors, together with their quality.
-        """
-        if self.beam_width < task.result_set_size:
-            raise RuntimeError('Beam width in the beam search algorithm is smaller than the result set size!')
-
-        list_of_beam = list()
-        list_of_beam.append(list())
-        list_of_beam[0] = [(0, Description())]
-
-        depth = 0
-        while depth < task.depth:
-            list_of_beam.append(list())
-            sg_candidates = list()
-
-            # print(depth)
-            for (_, last_sg) in list_of_beam[depth]:
-                ss = task.search_space.extract_search_space(task.data, task.discretizer, current_description=last_sg)
-                for sel in ss:
-
-                    new_selectors = list(last_sg.selectors)
-                    new_selectors.append(sel)
-                    new_description = Description(new_selectors)
-
-                    if new_description.size(task.data) < task.min_support:
-                        continue
-                    # check for duplicates
-                    #if new_description.is_present_in(list_of_beam[depth + 1]):
-                    #    continue
-
-                    quality = task.qf.evaluate(new_description, task)
-
-                    heappush(sg_candidates, ((-quality), quality, new_description, new_description.to_boolean_array(task.data))) #(weithed_quality, quality, description,bool_array)
-
-            # at this point we have the list of all candidate subgroups and we have to create the beam
-            cover_counts = np.zeros((task.data.shape[0]), dtype=int)
-
-            for i in range(0, self.beam_width):
-                new_in_beam = heappop(sg_candidates)
-                cover_counts = cover_counts + new_in_beam[3]
-                cover_pow= np.power(self.a, cover_counts)
-                list_of_beam[depth+1].append((new_in_beam[1], new_in_beam[2]))
-
-                for sg in sg_candidates:
-                    redundance_score= ((cover_pow * sg[3]).sum())/sg[2].size(task.data)
-                    sg = ((-sg[1]*redundance_score), sg[1], sg[2], sg[3])
-
-            depth += 1
-
-        subgroups = list()
-        for l in list_of_beam:
-            for ll in l:
-                if len(subgroups) < task.result_set_size:
-                    heappush(subgroups, (ll[0], ll[1].__repr__()))
-                elif ll[0] > subgroups[0][0]:
-                    heappop(subgroups)
-                    heappush(subgroups, (ll[0], ll[1].__repr__()))
         return subgroups
