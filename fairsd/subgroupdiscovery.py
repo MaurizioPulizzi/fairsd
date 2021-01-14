@@ -1,10 +1,11 @@
 import numpy as np
 from heapq import heappush, heappop
-#from mdlp.discretization import MDLP
-import Orange
+
 from Orange.data.pandas_compat import table_from_frame
 import pandas as pd
 from abc import ABC, abstractmethod
+
+import fairsd.discretization as discr
 
 class QualityFunction(ABC):
     """Abstract class.
@@ -350,16 +351,18 @@ class SearchSpace:
 class Discretizer:
     """Class for the discretization of the numeric attributes."""
 
-    def __init__(self, discretization_type, target=None):
+    def __init__(self, discretization_type, target=None, min_groupsize=1):
         """
 
         :param discretization_type : enumerated
             can be only {"mdlp"}
         :param target: String, optional
+        :param min_groupsize: int, optional
         """
         if discretization_type !='mdlp':
             raise RuntimeError('discretization_type mus be "mdlp" OR...')
         self.discretization_type = discretization_type
+        self.discretizer=discr.MDLP(min_groupsize, force=True)
         self.target = target
 
     def discretize(self, data, description, feature): #### to test
@@ -387,19 +390,10 @@ class Discretizer:
         PS: I'm sorry Hilde, I know these things shouldn't be done.
         """
         subset= data[description.to_boolean_array(data)]
-        y = subset[[self.target]]
-        x = subset[[feature]].copy()
-        '''
-        transformer = MDLP()
-        transformer.fit(x, y)  # discretization
-        cut_points = transformer.cut_points_[0]
-        '''
-        data_df = pd.concat([x, y], axis=1)
-        orange_table = table_from_frame(data_df, class_name='y_true')
+        y = subset[self.target]
+        x = subset[feature]
 
-        disc = Orange.preprocess.Discretize()
-        disc.method = Orange.preprocess.discretize.EntropyMDL(force=True)
-        cut_points = disc(orange_table)
+        cut_points=self.discretizer.findCutPoints(x, y)
 
         selectors = []
         if len(cut_points) < 1:
