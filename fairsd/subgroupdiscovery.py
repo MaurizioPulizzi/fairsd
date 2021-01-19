@@ -123,7 +123,7 @@ class Selector:
         :return: bool
         """
         for other in other_descriptors:
-            if self.attribute_name == other.attribute_name:
+            if self.attribute_name == other.attribute_name and self.is_numeric== other.is_numeric:
                 if self.is_numeric and self.up_bound==other.up_bound and self.low_bound==other.low_bound:
                     return True
                 elif self.is_numeric == False and self.attribute_value==other.attribute_value:
@@ -165,7 +165,7 @@ class Description:
             if s.is_numeric:
                 descr = descr + s.attribute_name + " = '(" + str(s.low_bound) +", "+ str(s.up_bound)+"]' AND "
             else:
-                descr = descr+ s.attribute_name+" = '"+s.attribute_value+"' AND "
+                descr = descr+ s.attribute_name+" = '"+str(s.attribute_value)+"' AND "
         if descr != "":
             descr = descr[:-4]
         return descr
@@ -211,7 +211,6 @@ class Description:
 
     def complement_to_boolean_array(self, dataset):  #not useful
         return np.invert(self.to_boolean_array(dataset))
-
 
     def size(self, dataset): # evaluate if delete this method ############
         """ Return the support of the description and set the support in case this parameters was not set.
@@ -334,7 +333,9 @@ class SearchSpace:
         "selectors" will contain the subset of the search space to return. All the selectors not yet discretized
         in the original search space, will be discretized before being inserted in the "selectors" list
         """
-        to_exclude = current_description.get_attributes() if current_description is not None else []
+        if current_description is None:
+            current_description = Description()
+        to_exclude = current_description.get_attributes()
         selectors = []
         for selector in self.nominal_selectors:
             if selector.attribute_name not in to_exclude:
@@ -378,16 +379,8 @@ class Discretizer:
 
         Returns
         -------
-        list of Descriptor(s)
-            Will be created e returned (in a list) one Descriptor for each bin created in the discretization phase.
-
-        Notes
-        -----
-        The Orange library in modified.
-        In particular the disc() function of the Orange library, in this implementation, return the cut points
-        instead of the discretized dataset.
-        For this reason this function (discretize()) can work only in the original virtual environment of the project.
-        PS: I'm sorry Hilde, I know these things shouldn't be done.
+        list of Selector(s)
+            Will be created e returned (in a list) one Selector for each bin created in the discretization phase.
         """
         subset= data[description.to_boolean_array(data)]
         y = subset[self.target]
@@ -414,7 +407,7 @@ class SubgroupDiscoveryTask:
             feature_names=None, # optional, list with column names in case users supply a numpy array X
             nominal_features = None, #optional, list of nominal features
             numeric_features = None, #optional, list of nominal features
-            qf='equal_opportunity_difference', # str or callable (see my comment `Fairlearn integration')
+            qf='equal_opportunity_difference', # str (########################### MUST BE CALLABLE ALSO)
             discretizer='mdlp', # str or Discretizer object
             result_set_size=10,
             depth=3,
@@ -425,21 +418,24 @@ class SubgroupDiscoveryTask:
         if isinstance(X, np.ndarray):
             if feature_names is None:
                 raise RuntimeError('Since X is a Numpy array, the feature_names parameter must contain the column names of the features')
-            self.data = pd.DataFrame(X, feature_names)
+            self.data = pd.DataFrame(X, columns=feature_names)
+            print(self.data)
         else:
-            self.data = X
+            self.data = X.copy()
         self.search_space = SearchSpace(self.data, None, nominal_features, numeric_features)
         self.data['y_true'] = y_true
         if y_pred is not None:
             self.data['y_pred'] = y_pred
 
         self.target= BinaryTarget('y_true', 'y_pred', target_value=1) ######### currently target_value is not used
-
-        if qf == 'equal_opportunity_difference':
-            self.qf = EqualOpportunity()
-        #elif:
+        if isinstance(qf, str):
+            if qf == 'equal_opportunity_difference':
+                self.qf = EqualOpportunity()
+            #elif:
+            else:
+                raise RuntimeError('Quality function not known')
         else:
-            raise RuntimeError('Quality function not known')
+            self.qf=qf
 
         self.discretizer = Discretizer(discretization_type=discretizer, target='y_true')
 
@@ -506,11 +502,12 @@ class BeamSearch:
             depth +=1
 
         subgroups=list()
-        for l in list_of_beam:
+        for l in list_of_beam[1:]:
             for ll in l:
                 if len(subgroups) < task.result_set_size:
                     heappush(subgroups, (ll[0],ll[1].__repr__()))
                 elif ll[0] > subgroups[0][0]:
                     heappop(subgroups)
                     heappush(subgroups,(ll[0],ll[1].__repr__()))
+        subgroups.sort(reverse=True)
         return subgroups

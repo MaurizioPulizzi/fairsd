@@ -3,7 +3,7 @@ import math
 
 class MDLP:
     """
-    This class find the cut points to discretize a numerical feature using the Fayyad and Irani approach.
+    This class find the cut points to discretize a numerical feature using the Fayyad and Irani approach (MDL principle).
 
     In thi class the constructor allows to specify the minimum possible size for a group (min_groupSize).
     This parameter is interpret as an hard constraint: only cut points that produce buckets larger than
@@ -27,6 +27,8 @@ class MDLP:
         :param y: list, numpy array or pandas Series that contains binary values (0 or 1) representing the class label
 
         :return: list of (ascending) ordered cut points
+            if the function returns the cut points [c1, c2, ..., cn], with c1<c2<...<cn, the feature can be discretized
+            by creating n+1 buckets: (-infinite, c1], (c1, c2], ..., (cn-1, cn], (cn, +infinite)
         """
         df = pd.DataFrame({'x':x, 'y':y})
         total_size = df.shape[0]
