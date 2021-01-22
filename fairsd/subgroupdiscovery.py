@@ -1,28 +1,39 @@
 import numpy as np
 from heapq import heappush, heappop
-
-from Orange.data.pandas_compat import table_from_frame
 import pandas as pd
 from abc import ABC, abstractmethod
 
 import fairsd.discretization as discr
+import fairlearn.metrics as flm
+import inspect
+
+quality_function_options = [
+    'equalized_odds_difference',
+    'equalized_odds_ratio',
+    'demographic_parity_difference',
+    'demographic_parity_ratio'
+]
+
+quality_function_parameters = [
+    'y_true',
+    'y_pred',
+    'sensitive_features'
+]
 
 class QualityFunction(ABC):
     """Abstract class.
 
-    It is suggested to extend this class to create new quality functions for the evaluation of the subgroups.
+    If the user wants to create a customized quality function, it is recommended to extend this class
     """
     @abstractmethod
-    def evaluate(self, description, task):
+    def evaluate(self, y_true, y_pred, sensitive_features):
         """Evaluate the quality of a description.
 
         Parameters
         ----------
-        description : Description
-            Is the description of the subgroup to evaluate.
-        task : SubgroupDiscoveryTask
-            Contains all the parameters that can be useful to calculate the quality,
-            like the dataset and the target.
+        y_true : list, pandas.series or numpy array
+        y_pred : list, pandas.series or numpy array
+        sensitive_features : list, pandas.series or numpy array
 
         Returns
         -------
@@ -30,26 +41,6 @@ class QualityFunction(ABC):
             Real number indicating rhe calculated quality.
         """
         pass
-
-
-class EqualOpportunity(QualityFunction):
-    def evaluate(self, description, task):
-        data = task.data
-        target_attr = task.target.y_true
-        target_val = task.target.target_value
-        pred_attr = task.target.y_pred
-
-        p_subset = data[description.to_boolean_array(data) & (data[target_attr] == target_val)]
-        p_sg = p_subset.shape[0]
-        tp_sg = p_subset[(p_subset[pred_attr] == target_val)].shape[0]
-
-        p_complement = data[description.complement_to_boolean_array(data) & (data[target_attr] == target_val)]
-        p_c = p_complement.shape[0]
-        tp_c = p_complement[(p_complement[pred_attr] == target_val)].shape[0]
-
-        if p_sg == 0: return 0
-        if p_c == 0: return 0
-        return (tp_c / p_c) - (tp_sg/p_sg)
 
 
 class BinaryTarget:
@@ -147,14 +138,6 @@ class Description:
             self.selectors=selectors
         self.support = None
 
-    def set_support(self, support):
-        """
-        :param support : int
-            this parameter is needed to compare two different description (see __lt__() function)
-        :return: void
-        """
-        self.support = support
-
     def __repr__(self):
         """Represent the description as a string.
 
@@ -207,6 +190,14 @@ class Description:
                     s = s & (dataset[self.selectors[i].attribute_name] <= self.selectors[i].up_bound)
             else:
                 s =( (s) & (dataset[self.selectors[i].attribute_name] == self.selectors[i].attribute_value))
+
+        #set size, relative size and target share
+        d=dataset[s]
+        self.support=d.shape[0]
+        self.relative_size = self.support/dataset.shape[0]
+        if self.support>0:
+            self.target_share = d[d.y_true == 1].shape[0]/self.support
+
         return s
 
     def complement_to_boolean_array(self, dataset):  #not useful
@@ -219,7 +210,7 @@ class Description:
         :return: int
         """
         if self.support is None:
-            self.support = dataset[self.to_boolean_array(dataset)].shape[0]
+            self.to_boolean_array(dataset)
         return self.support
 
     def get_attributes(self):
@@ -251,6 +242,9 @@ class Description:
                 return True
         return False
 
+    def set_quality(self, q):
+        self.set_quality=q
+
 
 class SearchSpace:
     """Will contain the set of all the descriptors to take into consideration for creating a Description.
@@ -263,13 +257,15 @@ class SearchSpace:
         will contain all possible  numeric selectors.
     """
 
-    def __init__(self, dataset, ignore=None, nominal_features=None, numeric_features=None):
+    def __init__(self, dataset, ignore=None, nominal_features=None, numeric_features=None, dynamic_discretization=False, discretizer=None):
         """
         :param dataset : pandas.DataFrame
         :param ignore : list of String(s)
             list the attributes to not take into consideration for creating the search space.
         :param nominal_features : list that contain a subgroup of nominal features
         :param numeric_features : list that contain a subgroup of numeric features
+        :param dynamic_discretization: boolean
+        :param discretizer: Discretizer object
 
         Notes
         -----
@@ -278,6 +274,7 @@ class SearchSpace:
         In this implementation all the numeric selectors created and inserted into the search space
         will be to discretize
         """
+        self.dynamic_discretization=dynamic_discretization #####NOT USED
         if ignore is None:
             ignore = []
         if nominal_features is None:
@@ -302,13 +299,22 @@ class SearchSpace:
                     self.nominal_selectors.append(Selector(col, attribute_value=x))
 
         # numerical selectors
-        for col in numeric_features:
-            if col not in ignore:
-                self.numeric_selectors.append(Selector(col, to_discretize=True, is_numeric=True))
-        dtypes_subs = dataset.select_dtypes(include=['number'])
-        for col in dtypes_subs.columns:
-            if col not in ignore + nominal_features + numeric_features:
-                self.numeric_selectors.append(Selector(col, to_discretize=True, is_numeric=True))
+        if dynamic_discretization:
+            for col in numeric_features:
+                if col not in ignore:
+                    self.numeric_selectors.append(Selector(col, to_discretize=True, is_numeric=True))
+            dtypes_subs = dataset.select_dtypes(include=['number'])
+            for col in dtypes_subs.columns:
+                if col not in ignore + nominal_features + numeric_features:
+                    self.numeric_selectors.append(Selector(col, to_discretize=True, is_numeric=True))
+        else:
+            for col in numeric_features:
+                if col not in ignore:
+                    self.numeric_selectors.extend(discretizer.discretize(dataset, Description(), col))
+            dtypes_subs = dataset.select_dtypes(include=['number'])
+            for col in dtypes_subs.columns:
+                if col not in ignore + nominal_features + numeric_features:
+                    self.numeric_selectors.extend(discretizer.discretize(dataset, Description(), col))
 
     def extract_search_space(self, dataset, discretizer, current_description=None):
         """This method return the subset of the search space to explore
@@ -407,12 +413,13 @@ class SubgroupDiscoveryTask:
             feature_names=None, # optional, list with column names in case users supply a numpy array X
             nominal_features = None, #optional, list of nominal features
             numeric_features = None, #optional, list of nominal features
-            qf='equal_opportunity_difference', # str (########################### MUST BE CALLABLE ALSO)
+            qf='equalized_odds_ratio', # str (########################### MUST BE CALLABLE ALSO)
             discretizer='mdlp', # str or Discretizer object
+            dynamic_discretization=False,
             result_set_size=10,
             depth=3,
             min_quality=0.1,
-            min_support=250
+            min_support=200
         ):
 
         if isinstance(X, np.ndarray):
@@ -422,27 +429,39 @@ class SubgroupDiscoveryTask:
             print(self.data)
         else:
             self.data = X.copy()
-        self.search_space = SearchSpace(self.data, None, nominal_features, numeric_features)
+
         self.data['y_true'] = y_true
         if y_pred is not None:
             self.data['y_pred'] = y_pred
 
-        self.target= BinaryTarget('y_true', 'y_pred', target_value=1) ######### currently target_value is not used
-        if isinstance(qf, str):
-            if qf == 'equal_opportunity_difference':
-                self.qf = EqualOpportunity()
-            #elif:
-            else:
-                raise RuntimeError('Quality function not known')
-        else:
-            self.qf=qf
-
         self.discretizer = Discretizer(discretization_type=discretizer, target='y_true')
+        self.search_space = SearchSpace(self.data, ['y_true', 'y_pred'], nominal_features, numeric_features,
+                                        dynamic_discretization, self.discretizer)
+
+
+        self.target= BinaryTarget('y_true', 'y_pred', target_value=1) ######### currently target_value is not used
+        self.qf=self.set_qualityfuntion(qf)
 
         self.result_set_size = result_set_size
         self.depth = depth
         self.min_quality = min_quality
         self.min_support = min_support
+
+    def set_qualityfuntion(self, qf):
+        #fare il check che qf sia string o callable e funzione di fairlearn
+        if isinstance(qf, str):
+            if qf not in quality_function_options:
+                raise ValueError('Quality function not known')
+            else:
+                return getattr(flm, qf)
+
+        if not callable(qf):
+            RuntimeError('Supplied metric object must be callable or string')
+        sig = inspect.signature(qf).parameters
+        for par in quality_function_parameters:
+            if par not in sig:
+                raise ValueError("Please use the funtions in the fairlearn.metrics package as quality functions")
+        return qf
 
 
 class BeamSearch:
@@ -485,14 +504,17 @@ class BeamSearch:
                     new_selectors.append(sel)
                     new_description=Description(new_selectors)
 
-                    if new_description.size(task.data)<task.min_support:
-                        continue
-                    #check for duplicates
-                    if new_description.is_present_in(list_of_beam[depth+1]):
+                    # check for duplicates
+                    if new_description.is_present_in(list_of_beam[depth + 1]):
                         continue
 
-                    quality=task.qf.evaluate(new_description,task)
-                    #new_description.set_support(support)
+                    sg_belonging_feature = new_description.to_boolean_array(task.data)
+                    #check min support
+                    if new_description.size(task.data)<task.min_support:
+                        continue
+                    #evaluate subgroup
+                    quality=task.qf(y_true = task.data['y_true'], y_pred = task.data['y_pred'],
+                                    sensitive_features =sg_belonging_feature )
 
                     if len(list_of_beam[depth+1]) < self.beam_width:
                         heappush(list_of_beam[depth+1], (quality, new_description))
