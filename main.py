@@ -3,8 +3,6 @@ import pandas as pd
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import accuracy_score
 import fairlearn.metrics as fm
-#import numpy as np
-
 import fairsd.subgroupdiscovery as dsd
 
 #Import dataset, training the classifier, producing y_pred
@@ -29,8 +27,5 @@ y_true = y_true[:1000]
 task=dsd.SubgroupDiscoveryTask(dataset, y_true, y_pred, qf = fm.demographic_parity_difference)
 result_set=dsd.BeamSearch(beam_width=10).execute(task)
 
-
-print("Result:")
-print(" QUALITY              DESCRIPTION")
-for s in result_set:
-       print(s)
+print(result_set.to_dataframe())
+print(result_set.extract_sg_feature(0,dataset))

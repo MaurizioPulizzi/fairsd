@@ -156,19 +156,17 @@ class Description:
     def __lt__(self, other):
         """Compare the current description (self) with another description (other).
 
-        To compare two descriptions, one compares their quality first (according to the quality function), but
-        in the current implementation, quality is not a parameter of the description and the comparison happens "outside".
-        Currently this method will therefore only be called if two descriptions have equal quality.
-
         :param other: Description
         :return: bool
         """
-        if self.support != other.support:
+        if self.quality != other.quality:
+            return self.quality < other.quality
+        elif self.support != other.support:
             return self.support < other.support
         else:
             return len(self.selectors) > len(other.selectors)
 
-    def to_boolean_array(self, dataset):
+    def to_boolean_array(self, dataset, set_attributes=False):
         """
         Parameters
         ----------
@@ -191,12 +189,13 @@ class Description:
             else:
                 s =( (s) & (dataset[self.selectors[i].attribute_name] == self.selectors[i].attribute_value))
 
-        #set size, relative size and target share
-        d=dataset[s]
-        self.support=d.shape[0]
-        self.relative_size = self.support/dataset.shape[0]
-        if self.support>0:
-            self.target_share = d[d.y_true == 1].shape[0]/self.support
+        if set_attributes:
+            #set size, relative size and target share
+            d=dataset[s]
+            self.support=d.shape[0]
+            self.relative_size = self.support/dataset.shape[0]
+            if self.support>0:
+                self.target_share = d[d.y_true == 1].shape[0]/self.support
 
         return s
 
@@ -225,14 +224,14 @@ class Description:
 
     def is_present_in(self, beam):
         """
-        :param beam : array of tuples <_, Description>
+        :param beam : array of Description
 
         :return: bool
             True if the current description (self) is present in the list.
             The current object (Description) has to have the same parameters of another object present in the list.
             It is not needed that the current object must be physically in the list (same cells of memory).
         """
-        for _, descr in beam:
+        for descr in beam:
             equals=True
             for sel in self.selectors:
                 if sel.is_present_in(descr.selectors) == False:
@@ -243,7 +242,7 @@ class Description:
         return False
 
     def set_quality(self, q):
-        self.set_quality=q
+        self.quality=q
 
 
 class SearchSpace:
@@ -464,6 +463,25 @@ class SubgroupDiscoveryTask:
         return qf
 
 
+class ResultSet:
+    def __init__(self, descriptions_list):
+        self.descriptions_list=descriptions_list
+
+    def to_dataframe(self):
+        lod=list()
+        for d in self.descriptions_list:
+            row = [d.quality, d.__repr__(), d.support, d.relative_size, d.target_share]
+            lod.append(row)
+        columns = ['quality', 'description', 'size_sg', 'relative_size_sg', 'target_share_sg']
+        index = [("sg"+str(x)) for x in range(len(self.descriptions_list))]
+        return pd.DataFrame(lod, index=index, columns=columns)
+
+    def extract_sg_feature(self,sg_number, data):
+        if(sg_number>=len(self.descriptions_list) or sg_number<0):
+            raise RuntimeError("The requested subgroup doesn't exists")
+        return pd.Series(self.descriptions_list[sg_number].to_boolean_array(data), name="sg"+str(sg_number))
+
+
 class BeamSearch:
     """This class is used to execute the Beam Search Algorithm."""
     def __init__(self, beam_width=20):
@@ -490,13 +508,13 @@ class BeamSearch:
 
         list_of_beam=list()
         list_of_beam.append(list())
-        list_of_beam[0] =[(0,Description())]
+        list_of_beam[0] =[Description()]
 
         depth = 0
         while depth < task.depth:
             list_of_beam.append(list())
             #print(depth)
-            for (_, last_sg) in list_of_beam[depth]:
+            for last_sg in list_of_beam[depth]:
                 ss = task.search_space.extract_search_space(task.data, task.discretizer, current_description=last_sg)
                 for sel in ss:
 
@@ -508,28 +526,24 @@ class BeamSearch:
                     if new_description.is_present_in(list_of_beam[depth + 1]):
                         continue
 
-                    sg_belonging_feature = new_description.to_boolean_array(task.data)
+                    sg_belonging_feature = new_description.to_boolean_array(task.data, set_attributes=True)
                     #check min support
                     if new_description.size(task.data)<task.min_support:
                         continue
                     #evaluate subgroup
                     quality=task.qf(y_true = task.data['y_true'], y_pred = task.data['y_pred'],
                                     sensitive_features =sg_belonging_feature )
+                    new_description.set_quality(quality)
 
                     if len(list_of_beam[depth+1]) < self.beam_width:
-                        heappush(list_of_beam[depth+1], (quality, new_description))
-                    elif quality > list_of_beam[depth+1][0][0]:
+                        heappush(list_of_beam[depth+1], new_description)
+                    elif quality > list_of_beam[depth+1][0].quality:
                         heappop(list_of_beam[depth+1])
-                        heappush(list_of_beam[depth+1], (quality, new_description))
+                        heappush(list_of_beam[depth+1], new_description)
             depth +=1
 
         subgroups=list()
         for l in list_of_beam[1:]:
-            for ll in l:
-                if len(subgroups) < task.result_set_size:
-                    heappush(subgroups, (ll[0],ll[1].__repr__()))
-                elif ll[0] > subgroups[0][0]:
-                    heappop(subgroups)
-                    heappush(subgroups,(ll[0],ll[1].__repr__()))
+            subgroups.extend(l)
         subgroups.sort(reverse=True)
-        return subgroups
+        return ResultSet(subgroups[:task.result_set_size])
