@@ -191,16 +191,8 @@ class Description:
 
         if set_attributes:
             #set size, relative size and target share
-            d=dataset[s]
-            self.support=d.shape[0]
-            self.relative_size = self.support/dataset.shape[0]
-            if self.support>0:
-                self.target_share = d[d.y_true == 1].shape[0]/self.support
-
+            self.support=sum(s)
         return s
-
-    def complement_to_boolean_array(self, dataset):  #not useful
-        return np.invert(self.to_boolean_array(dataset))
 
     def size(self, dataset): # evaluate if delete this method ############
         """ Return the support of the description and set the support in case this parameters was not set.
@@ -209,7 +201,7 @@ class Description:
         :return: int
         """
         if self.support is None:
-            self.to_boolean_array(dataset)
+            self.to_boolean_array(dataset, set_attributes=True)
         return self.support
 
     def get_attributes(self):
@@ -221,6 +213,9 @@ class Description:
         for sel in self.selectors:
             attributes.append(sel.get_attribute_name())
         return attributes
+
+    def get_selectors(self):
+        return self.selectors
 
     def is_present_in(self, beam):
         """
@@ -243,6 +238,9 @@ class Description:
 
     def set_quality(self, q):
         self.quality=q
+
+    def get_quality(self):
+        return self.quality
 
 
 class SearchSpace:
@@ -447,7 +445,6 @@ class SubgroupDiscoveryTask:
         self.min_support = min_support
 
     def set_qualityfuntion(self, qf):
-        #fare il check che qf sia string o callable e funzione di fairlearn
         if isinstance(qf, str):
             if qf not in quality_function_options:
                 raise ValueError('Quality function not known')
@@ -464,22 +461,23 @@ class SubgroupDiscoveryTask:
 
 
 class ResultSet:
-    def __init__(self, descriptions_list):
+    def __init__(self, descriptions_list, x_size):
         self.descriptions_list=descriptions_list
+        self.X_size = x_size
 
     def to_dataframe(self):
         lod=list()
         for d in self.descriptions_list:
-            row = [d.quality, d.__repr__(), d.support, d.relative_size, d.target_share]
+            row = [d.quality, d.__repr__(), d.support, d.support/self.X_size]
             lod.append(row)
-        columns = ['quality', 'description', 'size_sg', 'relative_size_sg', 'target_share_sg']
+        columns = ['quality', 'description', 'size', 'relative_size']
         index = [("sg"+str(x)) for x in range(len(self.descriptions_list))]
         return pd.DataFrame(lod, index=index, columns=columns)
 
     def extract_sg_feature(self,sg_number, data):
         if(sg_number>=len(self.descriptions_list) or sg_number<0):
             raise RuntimeError("The requested subgroup doesn't exists")
-        return pd.Series(self.descriptions_list[sg_number].to_boolean_array(data), name="sg"+str(sg_number))
+        return pd.Series(self.descriptions_list[sg_number].to_boolean_array(data), name=str(sg_number))
 
 
 class BeamSearch:
@@ -533,6 +531,8 @@ class BeamSearch:
                     #evaluate subgroup
                     quality=task.qf(y_true = task.data['y_true'], y_pred = task.data['y_pred'],
                                     sensitive_features =sg_belonging_feature )
+                    if quality < task.min_quality:
+                        continue
                     new_description.set_quality(quality)
 
                     if len(list_of_beam[depth+1]) < self.beam_width:
@@ -546,4 +546,170 @@ class BeamSearch:
         for l in list_of_beam[1:]:
             subgroups.extend(l)
         subgroups.sort(reverse=True)
-        return ResultSet(subgroups[:task.result_set_size])
+        return ResultSet(subgroups[:task.result_set_size], task.data.shape[0])
+
+
+class DSSD:
+    def __init__(self, beam_width=20, a=0.9):
+        self.beam_width=beam_width
+        self.a= 1-a
+
+
+    def execute(self, task):
+        if self.beam_width < task.result_set_size:
+            raise RuntimeError('Beam width in the beam search algorithm is smaller than the result set size!')
+
+        # PHASE 1 - MODIFIED BEAM SEARCH
+        list_of_beam = list()
+        self.redundancy_aware_beam_search(list_of_beam, task)
+
+        # PHASE 2 - DOMINANCE PRUNING
+        subgroups = list()
+        subgroups.extend(list_of_beam[1])
+        if len(list_of_beam)>1:
+            for l in list_of_beam[2:]:
+                self.dominance_pruning(l, subgroups, task)
+
+        # PHASE 3 - SUBGROUP SELECTION
+        tuples_sg_matrix = []
+        quality_array = []
+        support_array = list()
+        for descr in subgroups:
+            tuples_sg_matrix.append(descr.to_boolean_array(task.data))
+            quality_array.append(descr.get_quality())
+            support_array.append(descr.support)
+        support_array = np.array(support_array)
+        quality_array = np.array(quality_array)
+        tuples_sg_matrix = np.array(tuples_sg_matrix)
+        final_sgs = []
+        self.beam_creation(tuples_sg_matrix, support_array, quality_array, subgroups, final_sgs, task.result_set_size)
+
+        final_sgs.sort(reverse=True)
+        return ResultSet(final_sgs, task.data.shape[0])
+
+
+    def redundancy_aware_beam_search(self, list_of_beam, task):
+        list_of_beam.append(list())
+        list_of_beam[0] = [Description()]
+
+        depth = 0
+        while depth < task.depth:
+            # Generation of the beam with number of descriptors = depth+1
+
+            list_of_beam.append(list())
+            # print(depth)
+
+            tuples_sg_matrix = []  # boolean matrix where rows are candidates subgroups and columns are tuples of the dataset
+            # tuples_sg_matrix[i][j] == true iff subgroup i contain tuple j
+            quality_array = []  # contains the quality of each candidate subgroup
+            support_array = []  # contains the support of each candidate subgroup
+            decriptions_list = list()  # contains the description object of each candidate subgroup
+
+            # generation of candidates subgroups
+            for last_sg in list_of_beam[depth]:  # for each subgroup in the previous beam
+                ss = task.search_space.extract_search_space(task.data, task.discretizer, current_description=last_sg)
+
+                # generation of all the possible extensions of the description last_sg
+                for sel in ss:
+
+                    new_selectors = list(last_sg.selectors)
+                    new_selectors.append(sel)
+                    new_description = Description(new_selectors)
+
+                    # check for duplicates
+                    if new_description.is_present_in(decriptions_list):
+                        continue
+
+                    sg_belonging_feature = new_description.to_boolean_array(task.data, set_attributes=True)
+                    support = new_description.support
+                    # check min support
+                    if support < task.min_support:
+                        continue
+                    # evaluate subgroup
+                    quality = task.qf(y_true=task.data['y_true'], y_pred=task.data['y_pred'],
+                                      sensitive_features=sg_belonging_feature)
+                    if quality < task.min_quality:
+                        continue
+
+                    tuples_sg_matrix.append(sg_belonging_feature)
+                    support_array.append(support)
+                    quality_array.append(quality)
+                    decriptions_list.append(new_description)
+
+            # CREATION OF THE BEAM
+            support_array = np.array(support_array)
+            quality_array = np.array(quality_array)
+            tuples_sg_matrix = np.array(tuples_sg_matrix)
+            self.beam_creation(tuples_sg_matrix, support_array, quality_array, decriptions_list,
+                               list_of_beam[depth + 1], self.beam_width)
+
+            depth += 1
+
+    def dominance_pruning(self, subgroups, pruned_sgs, task):
+
+        for desc in subgroups:
+            selectors = desc.get_selectors()
+
+            generalizable = False
+            for i in range(len(selectors)):
+
+                #creation of a generalized description by excluding the i-th descriptor
+                new_sel_list = []
+                for j in range(len(selectors)):
+                    if i != j:
+                        new_sel_list.append(selectors[j])
+                new_des = Description(new_sel_list)
+
+                sg_belonging_feature = new_des.to_boolean_array(task.data, set_attributes=True)
+                quality = task.qf(y_true=task.data['y_true'], y_pred=task.data['y_pred'],
+                                  sensitive_features=sg_belonging_feature)
+
+                if quality >= desc.get_quality():
+                    generalizable=True
+                    if new_des.is_present_in(pruned_sgs):
+                        continue
+                    new_des.set_quality(quality)
+                    pruned_sgs.append(new_des)
+
+            if generalizable == False:
+                pruned_sgs.append(desc)
+
+    def beam_creation(self, tuples_sg_matrix, support_array, quality_array, decriptions_list, beam, beam_width):
+        # sort in a way that, in case of equal quality, groups with highter support are preferred
+        sorted_index = np.argsort(support_array)
+        support_array = support_array[sorted_index]
+        quality_array = quality_array[sorted_index]
+        tuples_sg_matrix = tuples_sg_matrix[sorted_index]
+        decriptions_list.sort(key=lambda x: x.support, reverse=True)
+
+        # selection of the sg with highest quality
+        index_of_max = np.argmax(quality_array)
+        descr = decriptions_list[index_of_max]
+        descr.set_quality(quality_array[index_of_max])
+        beam.append(descr)
+        quality_array[index_of_max] = 0
+
+        a_tothe_c_array = np.ones(tuples_sg_matrix.shape[1])
+        for i in range(1, beam_width):
+            # a_tothe_c updating
+            best_sg_arr = tuples_sg_matrix[index_of_max]
+            best_sg_arr = 1 - self.a * best_sg_arr
+            #  updating
+            a_tothe_c_array = np.multiply(a_tothe_c_array, best_sg_arr)
+
+            # weight creation
+            alpha_matrix = np.multiply(a_tothe_c_array, tuples_sg_matrix)
+            weights = np.divide(np.sum(alpha_matrix, axis=1), support_array)
+
+            # selection of the sg with highest quality
+            weighted_quality_array = np.multiply(quality_array, weights)
+            index_of_max = np.argmax(weighted_quality_array)
+            descr = decriptions_list[index_of_max]
+            descr.set_quality(quality_array[index_of_max])
+            # isertion of the description in the beam
+            beam.append(descr)
+            quality_array[index_of_max] = 0
+
+
+
+
