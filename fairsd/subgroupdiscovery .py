@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 import fairsd.discretization as discr
 import fairlearn.metrics as flm
 import inspect
+import bisect
 
 quality_function_options = [
     'equalized_odds_difference',
@@ -355,19 +356,27 @@ class SearchSpace:
 class Discretizer:
     """Class for the discretization of the numeric attributes."""
 
-    def __init__(self, discretization_type, target=None, min_groupsize=1):
+    def __init__(self, discretization_type, target=None, min_groupsize=1, num_bins = 6):
         """
 
         :param discretization_type : enumerated
-            can be only {"mdlp"}
+            can be "mdlp" or "equalfreq" or "equalwidth"
         :param target: String, optional
         :param min_groupsize: int, optional
         """
-        if discretization_type !='mdlp':
-            raise RuntimeError('discretization_type mus be "mdlp" OR...')
         self.discretization_type = discretization_type
-        self.discretizer=discr.MDLP(min_groupsize, force=True)
-        self.target = target
+        if discretization_type =='mdlp':
+            self.supervised = True
+            self.discretizer =discr.MDLP(min_groupsize, force=True)
+            self.target = target
+        elif discretization_type =='equalfreq':
+            self.supervised = False
+            self.discretizer = discr.EqualFrequency(min_groupsize, num_bins)
+        elif discretization_type =='equalwidth':
+            self.supervised = False
+            self.discretizer = discr.EqualWidth(min_groupsize, num_bins)
+        else:
+            raise RuntimeError('discretization_type must be "mdlp" OR "equalfreq" OR "equalwidth"')
 
     def discretize(self, data, description, feature): #### to test
         """
@@ -386,10 +395,12 @@ class Discretizer:
             Will be created e returned (in a list) one Selector for each bin created in the discretization phase.
         """
         subset= data[description.to_boolean_array(data)]
-        y = subset[self.target]
         x = subset[feature]
-
-        cut_points=self.discretizer.findCutPoints(x, y)
+        if self.supervised:
+            y = subset[self.target]
+            cut_points=self.discretizer.findCutPoints(x, y)
+        else:
+            cut_points = self.discretizer.findCutPoints(x)
 
         selectors = []
         if len(cut_points) < 1:
@@ -410,13 +421,13 @@ class SubgroupDiscoveryTask:
             feature_names=None, # optional, list with column names in case users supply a numpy array X
             nominal_features = None, #optional, list of nominal features
             numeric_features = None, #optional, list of nominal features
-            qf='equalized_odds_ratio', # str (########################### MUST BE CALLABLE ALSO)
-            discretizer='mdlp', # str or Discretizer object
-            dynamic_discretization=False,
-            result_set_size=10,
-            depth=3,
-            min_quality=0.1,
-            min_support=200
+            qf='equalized_odds_difference', # str or callable object
+            discretizer='equalfreq', # str
+            dynamic_discretization=False, #boolean
+            result_set_size=10, # int
+            depth=3, # int
+            min_quality=0.1, # float
+            min_support=200 #int
         ):
 
         if isinstance(X, np.ndarray):
@@ -443,6 +454,8 @@ class SubgroupDiscoveryTask:
         self.depth = depth
         self.min_quality = min_quality
         self.min_support = min_support
+
+
 
     def set_qualityfuntion(self, qf):
         if isinstance(qf, str):
@@ -534,10 +547,10 @@ class BeamSearch:
         while depth < task.depth:
             list_of_beam.append(list())
             #print(depth)
+            current_min_quality = 1
             for last_sg in list_of_beam[depth]:
                 ss = task.search_space.extract_search_space(task.data, task.discretizer, current_description=last_sg)
                 for sel in ss:
-
                     new_selectors = list(last_sg.selectors)
                     new_selectors.append(sel)
                     new_description=Description(new_selectors)
@@ -557,11 +570,21 @@ class BeamSearch:
                         continue
                     new_description.set_quality(quality)
 
-                    if len(list_of_beam[depth+1]) < self.beam_width:
-                        heappush(list_of_beam[depth+1], new_description)
-                    elif quality > list_of_beam[depth+1][0].quality:
-                        heappop(list_of_beam[depth+1])
-                        heappush(list_of_beam[depth+1], new_description)
+                    if len(list_of_beam[depth + 1]) < self.beam_width:
+                        list_of_beam[depth + 1].append(new_description)
+                        if current_min_quality > quality:
+                            current_min_quality = quality
+                    elif quality > current_min_quality:
+                        i=0
+                        while list_of_beam[depth + 1][i].quality != current_min_quality:
+                            i = i + 1
+                        list_of_beam[depth + 1][i] = new_description
+                        current_min_quality = 1
+                        for d in list_of_beam[depth + 1]:
+                            if d.quality < current_min_quality:
+                                current_min_quality = d.quality
+
+
             depth +=1
 
         subgroups=list()
@@ -657,7 +680,7 @@ class DSSD:
             # Generation of the beam with number of descriptors = depth+1
 
             list_of_beam.append(list())
-            # print(depth)
+            #print(depth)
 
             tuples_sg_matrix = []  # boolean matrix where rows are candidates subgroups and columns are tuples of the dataset
             # tuples_sg_matrix[i][j] == true iff subgroup i contain tuple j
@@ -671,7 +694,6 @@ class DSSD:
 
                 # generation of all the possible extensions of the description last_sg
                 for sel in ss:
-
                     new_selectors = list(last_sg.selectors)
                     new_selectors.append(sel)
                     new_description = Description(new_selectors)
@@ -782,7 +804,8 @@ class DSSD:
         descr = decriptions_list[index_of_max]
         descr.set_quality(quality_array[index_of_max])
         beam.append(descr)
-        quality_array[index_of_max] = 0
+        quality_array[index_of_max] = 0 # the quality of the selected sg is set to 0 in the quality_array,
+                                        # in this way this subgroup will never be choosen again
 
         a_tothe_c_array = np.ones(tuples_sg_matrix.shape[1])
         for i in range(1, beam_width):

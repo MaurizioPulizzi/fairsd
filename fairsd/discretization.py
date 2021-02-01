@@ -1,5 +1,6 @@
 import pandas as pd
 import math
+import numpy as np
 
 class MDLP:
     """
@@ -135,4 +136,169 @@ class MDLP:
         a= [partition_x]+ left_partitions + right_partitions
         return a
 
+
+class EqualFrequency:
+    """
+    This class find the cut points to discretize a numerical feature using an approximate equal frequency discretization.
+    """
+    def __init__(self, min_bin_size=1, num_bins=0):
+        """
+        Parameters
+        __________
+        num_bins : int
+            this number is to interpret as the maximum number of bins that will be generated.
+            If this parameter is not specified (0 by deafault), it will be automatically determined.
+        min_bin_size : int
+            Represent the minimum size that a bin can have.
+
+        Notes
+        -----
+        If the number of bins has to be automatically determined, this will be chosen so that each bin has an average
+        size of 1.2 * min_bin_size. Let's call this number automatic_nbin
+        ( automatic_nbin = int(x.size/(self.min_group_size*1.2)) )
+        If instead the bin number is specified in the constructor (num_bins parameter), the number of bins that will
+        actually be generated will be, at most, equal to the minimum between num_bins and automatic_nbin. This is
+        to ensure that the constraint given by parameter min_bin_size is respected.
+        """
+        self.min_group_size = min_bin_size
+        self.num_bins = num_bins
+
+    def findCutPoints(self, x):
+        """
+        :param x: numpy array or pandas series
+        :return: list of (ascending) ordered cut points
+        """
+        if self.num_bins >1:
+            num_bins = min(self.num_bins, int(x.size/(self.min_group_size*1.2)))
+        else:
+            num_bins = int(x.size/(self.min_group_size*1.2))
+        if num_bins < 2:
+            return []
+
+        avg_group_size = x.size / num_bins
+
+        if isinstance(x, pd.Series):
+            x = x.to_numpy()
+        val, counts = np.unique(x, return_counts=True)
+
+        quantiles = [] #actually this array will contains quantiles * x.size
+        sum =0
+        for c in counts:
+            sum = sum+c
+            quantiles.append(sum)
+
+        cut_points = []
+        bins_size = []
+        next_expected_quantile = avg_group_size #again, is quantile * x.size
+        binsize = 0
+        for i in range(len(quantiles)):
+            binsize = binsize + counts[i]
+            if quantiles[i] >= next_expected_quantile:
+                if i==0:
+                    cut_points.append(val[i])
+                    bins_size.append(binsize)
+                    binsize = 0
+                else:
+                    up = quantiles[i] - next_expected_quantile
+                    low = next_expected_quantile - quantiles[i-1]
+                    if up <= low:
+                        cut_points.append(val[i])
+                        bins_size.append(binsize)
+                        binsize = 0
+                    else:
+                        cut_points.append(val[i-1])
+                        bins_size.append(binsize-counts[i])
+                        binsize = counts[i]
+                while next_expected_quantile <= quantiles[i]:
+                    next_expected_quantile = next_expected_quantile + avg_group_size
+                if next_expected_quantile >= x.size:
+                    bins_size.append(x.size - quantiles[i] - binsize)
+                    break
+        if len(cut_points) == 0:
+            return []
+
+        #The bins with size <= min_group_size will be merged with one of the other adiacent bins
+        self.mergeSmallBins(cut_points, bins_size)
+        return cut_points
+
+
+    def mergeSmallBins(self, cut_points, bins_size):
+        """
+        :param cut_points: list
+        :param bins_size: list
+        :return: void
+        """
+        min_smallbin = self.min_group_size
+        min_index = 0
+        for i in range(len(bins_size)):
+            if bins_size[i]<min_smallbin:
+                min_smallbin = bins_size[i]
+                min_index = i
+        if min_smallbin == self.min_group_size:
+            return
+
+        previous_size = 0
+        next_size = 0
+        if min_index > 0:
+            previous_size = bins_size[min_index - 1]
+        if min_index < (len(bins_size)-1):
+            next_size = bins_size[min_index + 1]
+
+        if previous_size == 0 and next_size ==0:
+            return
+
+        if (previous_size == 0) or (next_size > 0 and next_size < previous_size):
+            bins_size[min_index+1] = bins_size[min_index+1]+bins_size[min_index]
+            cut_points.pop(min_index)
+            bins_size.pop(min_index)
+        else:
+            bins_size[min_index - 1] = bins_size[min_index - 1] + bins_size[min_index]
+            cut_points.pop(min_index -1)
+            bins_size.pop(min_index -1)
+
+        self.mergeSmallBins(cut_points, bins_size)
+
+
+class EqualWidth:
+    """
+        This class find the cut points to discretize a numerical feature using the equal width discretization.
+        """
+    def __init__(self, min_bins_size=1, num_bins=0):
+        """
+        Parameters
+        __________
+        num_bins : int
+            this number is to interpret as the maximum number of bins that will be generated.
+            If this parameter is not specified (0 by deafault), it will be automatically determined.
+        min_bins_size : int
+
+        Notes
+        -----
+        min_bins_size and num_bins parameters are to be interpreted as for the EqualFreq class
+        """
+        self.min_group_size = min_bins_size
+        self.num_bins = num_bins
+
+    def findCutPoints(self, x):
+        """
+
+        :param x: numpy array or pandas series
+        :return: list of (ascending) ordered cut points
+        """
+        if self.num_bins > 1:
+            num_bins = min(self.num_bins, int(x.size / (self.min_group_size * 1.2)))
+        else:
+            num_bins = int(x.size / (self.min_group_size * 1.2))
+        if num_bins < 2:
+            return []
+
+        if isinstance(x, pd.Series):
+            x = x.to_numpy()
+        min = x.min()
+        bin_width = (x.max() - min)/num_bins
+        cut_points = []
+        current_cut = min + bin_width
+        for i in range(1, num_bins):
+            cut_points.append(current_cut)
+            current_cut = current_cut + bin_width
 
