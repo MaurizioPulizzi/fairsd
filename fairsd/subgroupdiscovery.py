@@ -1,5 +1,4 @@
 import numpy as np
-from heapq import heappush, heappop
 import pandas as pd
 from abc import ABC, abstractmethod
 
@@ -431,10 +430,9 @@ class SubgroupDiscoveryTask:
             min_quality=0.1, # float
             min_support=200 #int
         ):
-
+        self.inputChecking(X, y_true, y_pred, feature_names, nominal_features, numeric_features, discretizer,
+                           dynamic_discretization, result_set_size, depth, min_quality, min_support)
         if isinstance(X, np.ndarray):
-            if feature_names is None:
-                raise RuntimeError('Since X is a Numpy array, the feature_names parameter must contain the column names of the features')
             self.data = pd.DataFrame(X, columns=feature_names)
             print(self.data)
         else:
@@ -473,6 +471,54 @@ class SubgroupDiscoveryTask:
             if par not in sig:
                 raise ValueError("Please use the funtions in the fairlearn.metrics package as quality functions")
         return qf
+
+    def inputChecking(self,
+              X,  # pandas dataframe or numpy array with features
+              y_true,  # numpy array, pandas dataframe, or pandas Series with ground truth labels
+              y_pred=None,  # numpy array, pandas dataframe, or pandas Series with classifier's predicted labels
+              feature_names=None,  # optional, list with column names in case users supply a numpy array X
+              nominal_features=None,  # optional, list of nominal features
+              numeric_features=None,  # optional, list of nominal features
+              discretizer='equalfreq',  # str
+              dynamic_discretization=False,  # boolean
+              result_set_size=10,  # int
+              depth=3,  # int
+              min_quality=0.1,  # float
+              min_support=200  # int
+        ):
+        if not (isinstance(X, pd.DataFrame) or isinstance(X, np.ndarray)):
+            raise TypeError("X must be of type numpy.ndarray or pandas.DataFrame")
+        if not (isinstance(y_true, pd.DataFrame) or isinstance(y_true, np.ndarray) or isinstance(y_true, pd.Series)):
+            raise TypeError("y_true must be of type numpy.ndarray, pandas.Series or pandas.DataFrame")
+        if X.shape[0] != y_true.size:
+            raise RuntimeError("X and y_true have two different dimensions")
+        if y_pred is not None:
+            if not (isinstance(y_pred, pd.DataFrame) or isinstance(y_pred, np.ndarray) or isinstance(y_pred, pd.Series)):
+                raise TypeError("y_pred must be of type numpy.ndarray, pandas.Series or pandas.DataFrame")
+            if y_pred.size != y_true.size:
+                raise RuntimeError("y_pred and y_true have two different dimensions")
+        if isinstance(X, np.ndarray):
+            if (not isinstance(feature_names, list)) or len(feature_names) != X.shape[1]:
+                raise RuntimeError("If X is a numpy.ndarray, feature_names must contain the names of the colums")
+        if nominal_features is not None and not isinstance(nominal_features, list):
+            raise RuntimeError("nominal_features input must be of list type or None")
+        if numeric_features is not None and not isinstance(nominal_features, list):
+            raise RuntimeError("numeric_features input must be of list type or None")
+        if not isinstance(discretizer, str):
+            raise TypeError("discretizer input must be of string type")
+        if not isinstance(dynamic_discretization, bool):
+            raise TypeError("dynamic_discretization input must be of bool type")
+        if not isinstance(dynamic_discretization, bool):
+            raise TypeError("dynamic_discretization input must be of bool type")
+        if not isinstance(result_set_size, int) or result_set_size<1:
+            raise RuntimeError("result_set_size input must be greater than 0")
+        if not isinstance(depth, int) or result_set_size<1:
+            raise RuntimeError("depth input must be greater than 0")
+        if not isinstance(min_support, int) or result_set_size<1:
+            raise RuntimeError("min_support input must be greater than 0")
+        if min_quality>1 or min_quality<0:
+            raise RuntimeError("min_quality input must be between 0 and 1")
+
 
 
 class ResultSet:
@@ -548,7 +594,7 @@ class BeamSearch:
         will contain the most interesting descriptions formed by i descriptors, together with their quality.
         """
         if self.beam_width < task.result_set_size:
-            raise RuntimeError('Beam width in the beam search algorithm is smaller than the result set size!')
+            raise RuntimeError('Beam width is smaller than the result set size!')
 
         list_of_beam=list()
         list_of_beam.append(list())
@@ -636,7 +682,7 @@ class DSSD:
             subgroups to put in the result set are chosen by taking into account both quality and diversity
         """
         if self.beam_width < task.result_set_size:
-            raise RuntimeError('Beam width in the beam search algorithm is smaller than the result set size!')
+            raise RuntimeError('Beam width is smaller than the result set size!')
 
         # PHASE 1 - MODIFIED BEAM SEARCH
         list_of_beam = list()
