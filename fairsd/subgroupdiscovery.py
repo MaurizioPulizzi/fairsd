@@ -147,7 +147,9 @@ class Description:
         descr=""
         for s in self.selectors:
             if s.is_numeric:
-                descr = descr + s.attribute_name + " = '(" + str(s.low_bound) +", "+ str(s.up_bound)+"]' AND "
+                low = str(s.low_bound) if s.low_bound is not None else "-infinite"
+                up = str(s.up_bound) if s.up_bound is not None else "+infinite"
+                descr = descr + s.attribute_name + " = '(" + low +", "+ up +"]' AND "
             else:
                 descr = descr+ s.attribute_name+" = '"+str(s.attribute_value)+"' AND "
         if descr != "":
@@ -406,10 +408,10 @@ class Discretizer:
         if len(cut_points) < 1:
             return selectors
 
-        selectors.append(Selector(feature, is_numeric=True))
+        selectors.append(Selector(feature, low_bound=None, up_bound=None, is_numeric=True))
         for cp in cut_points:
             selectors[-1].up_bound=cp
-            selectors.append(Selector(feature, low_bound=cp, is_numeric=True))
+            selectors.append(Selector(feature, low_bound=cp, up_bound=None, is_numeric=True))
         return selectors
 
 
@@ -495,24 +497,33 @@ class ResultSet:
         for d in self.descriptions_list:
             row = [d.quality, d.__repr__(), d.support, d.support/self.X_size]
             lod.append(row)
-        columns = ['quality', 'description', 'size', 'relative_size']
+        columns = ['quality', 'description', 'size', 'proportion']
         index = [("sg"+str(x)) for x in range(len(self.descriptions_list))]
         return pd.DataFrame(lod, index=index, columns=columns)
 
-    def extract_sg_feature(self,sg_number, X):
+    def sg_feature(self,sg_index, X):
         """
         This method return generate and return the feature of the subgroup with number = sg_number
         in the current object.
         The result is indeed a boolean array of the same length of the dataset X. Each i-th element of this
         array is true iff the i-th tuple of X belong to the subgroup.
 
-        :param sg_number: int, number of the subgroup in the current object
+        :param sg_index: int, number of the subgroup in the current object
         :param X: pandas DataFrame or numpy array
         :return: boolean list
         """
-        if(sg_number>=len(self.descriptions_list) or sg_number<0):
+        if(sg_index>=len(self.descriptions_list) or sg_index<0):
             raise RuntimeError("The requested subgroup doesn't exists")
-        return pd.Series(self.descriptions_list[sg_number].to_boolean_array(X), name=str(sg_number))
+        return pd.Series(self.descriptions_list[sg_index].to_boolean_array(X), name=str(sg_index))
+
+    def __repr__(self):
+        res=""
+        for desc in self.descriptions_list:
+            res+= desc.__repr__() + "\n"
+        return res
+
+    def print(self):
+        print(self.__repr__())
 
 
 class BeamSearch:
@@ -583,8 +594,6 @@ class BeamSearch:
                         for d in list_of_beam[depth + 1]:
                             if d.quality < current_min_quality:
                                 current_min_quality = d.quality
-
-
             depth +=1
 
         subgroups=list()
@@ -603,7 +612,7 @@ class DSSD:
     subgroups, the more they are considered redundant.
     This algorithm is described in details in the Van Leeuwen and Knobbe's paper "Diverse Subgroup Set Discovery".
     """
-    def __init__(self, beam_width=20, a=0.9):
+    def __init__(self, beam_width=10, a=0.9):
         """
         :param beam_width: int
         :param a: float, the more a is high, the less the subgroups redundancy is taken into account
@@ -632,6 +641,15 @@ class DSSD:
         # PHASE 1 - MODIFIED BEAM SEARCH
         list_of_beam = list()
         self.redundancy_aware_beam_search(list_of_beam, task)
+
+        """ 
+        #Only for test -- to delete
+        subgroups = list()
+        for l in list_of_beam[1:]:
+            subgroups.extend(l)
+        subgroups.sort(reverse=True)
+        return ResultSet(subgroups[:task.result_set_size], task.data.shape[0])
+        """
 
         # PHASE 2 - DOMINANCE PRUNING
         subgroups = list()
@@ -718,6 +736,7 @@ class DSSD:
                     quality_array.append(quality)
                     decriptions_list.append(new_description)
 
+
             # CREATION OF THE BEAM
             support_array = np.array(support_array)
             quality_array = np.array(quality_array)
@@ -793,7 +812,7 @@ class DSSD:
         """
 
         # sort in a way that, in case of equal quality, groups with highter support are preferred
-        sorted_index = np.argsort(support_array)
+        sorted_index = np.argsort(support_array)[::-1]
         support_array = support_array[sorted_index]
         quality_array = quality_array[sorted_index]
         tuples_sg_matrix = tuples_sg_matrix[sorted_index]
