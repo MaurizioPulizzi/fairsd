@@ -1,11 +1,9 @@
 import numpy as np
 import pandas as pd
 from abc import ABC, abstractmethod
-
 import fairsd.discretization as discr
 import fairlearn.metrics as flm
 import inspect
-import bisect
 
 quality_function_options = [
     'equalized_odds_difference',
@@ -518,7 +516,6 @@ class SubgroupDiscoveryTask:
             raise RuntimeError("min_support input must be greater than 0")
         if min_quality>1 or min_quality<0:
             raise RuntimeError("min_quality input must be between 0 and 1")
-
 
 
 class ResultSet:

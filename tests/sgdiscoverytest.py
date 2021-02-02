@@ -7,7 +7,7 @@ sys.path.append('../')
 import fairsd.subgroupdiscovery as dsd
 import random
 
-def list_of_descriptors(num_des=3):
+def list_of_selectors(num_des=3):
     # create list of selector
     los = []
     # nominal descriptors
@@ -29,7 +29,7 @@ def istantiate_dataset():
 
 class TestSelectorMethods(TestCase):
     def test_is_present_in(self):
-        los = list_of_descriptors()
+        los = list_of_selectors()
 
         self.assertTrue(dsd.Selector("a2", attribute_value=True).is_present_in(los), "error1")
         self.assertFalse(dsd.Selector("a1", attribute_value=False).is_present_in(los), "error2")
@@ -42,13 +42,13 @@ class TestSelectorMethods(TestCase):
 
 class TestDescriptionMethods(TestCase):
     def setUp(self):
-        self.los=list_of_descriptors(3)
+        self.los=list_of_selectors(3)
         self.des= dsd.Description(self.los)
         self.des.set_support(5)
 
 
     def test__lt__(self):
-        los1 = list_of_descriptors(1)
+        los1 = list_of_selectors(1)
         des1 = dsd.Description(los1)
         des1.set_support(5)
         self.assertFalse(des1.__lt__(self.des))
@@ -58,7 +58,7 @@ class TestDescriptionMethods(TestCase):
         self.assertFalse(des1.__lt__(self.des))
 
     def test_to_boolean_array(self):
-        los = list_of_descriptors(1)
+        los = list_of_selectors(1)
         des = dsd.Description(los)
         self.assertTrue(np.array_equal(des.to_boolean_array(istantiate_dataset()),
                                        np.array([True,True,False,False,False,False])))
@@ -73,10 +73,10 @@ class TestDescriptionMethods(TestCase):
     def test_is_present_in(self):
         list_t = []
         for i in range(3):
-            list_t.append((i, dsd.Description(list_of_descriptors(i+1))))
+            list_t.append((i, dsd.Description(list_of_selectors(i+1))))
 
-        self.assertTrue(dsd.Description(list_of_descriptors(2)).is_present_in(list_t))
-        self.assertFalse(dsd.Description(list_of_descriptors(4)).is_present_in(list_t))
+        self.assertTrue(dsd.Description(list_of_selectors(2)).is_present_in(list_t))
+        self.assertFalse(dsd.Description(list_of_selectors(4)).is_present_in(list_t))
 
 class TestDiscretizerMethods(TestCase):
     '''
@@ -150,6 +150,7 @@ class TestSearchSpaceMethods(TestCase):
         self.assertTrue(correct_result[5].is_present_in(result))
         self.assertTrue(correct_result[6].is_present_in(result))
 
+COSTANT_SEED=3
 class TestQF(dsd.QualityFunction):
     """
     This quality function is created only for testing the sg_discovery algorithms.
@@ -157,7 +158,7 @@ class TestQF(dsd.QualityFunction):
     The seed is always =3, in this way the sequence of returned numbers is always reproducible.
     """
     def __init__(self):
-        random.seed(a=3)
+        random.seed(a=COSTANT_SEED)
     def evaluate(self, description,task):
        return random.random()
 
@@ -181,7 +182,7 @@ class TestBeamSeacrchMethods(TestCase):
 
         #create correct result
         correct_result = []
-        random.seed(a=3)
+        random.seed(a=COSTANT_SEED)
         correct_result.append((random.random(),"a0 = 'True' "))
         correct_result.append((random.random(), "a0 = 'False' "))
         correct_result.append((random.random(), "b0 = 'a' "))
@@ -204,6 +205,8 @@ class TestBeamSeacrchMethods(TestCase):
         for i in range(3):
             self.assertEqual(correct_result[i][0], result_set[i][0])
             self.assertEqual(correct_result[i][1], result_set[i][1])
+
+
 
 if __name__ == '__main__':
     unittest.main()

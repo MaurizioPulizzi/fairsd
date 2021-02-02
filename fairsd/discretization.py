@@ -187,39 +187,49 @@ class EqualFrequency:
             sum = sum+c
             quantiles.append(sum)
 
+        up_index = 0
+        low_index = 0
+        current_quantile=avg_group_size
+
+        cut_indexes = []
+        #for each expected quantile, find the approximation
+        while current_quantile < (sum-avg_group_size/2):
+            up_index, low_index = self.findApproximationIndexex(up_index, low_index, current_quantile, quantiles)
+
+            num_up = quantiles[up_index] - current_quantile
+            num_low = current_quantile - quantiles[low_index]
+
+            if num_up < num_low:
+                if up_index not in cut_indexes:
+                    cut_indexes.append(up_index)
+            else:
+                if low_index not in cut_indexes:
+                    cut_indexes.append(low_index)
+            current_quantile += avg_group_size
+
         cut_points = []
         bins_size = []
-        next_expected_quantile = avg_group_size #again, is quantile * x.size
-        binsize = 0
-        for i in range(len(quantiles)):
-            binsize = binsize + counts[i]
-            if quantiles[i] >= next_expected_quantile:
-                if i==0:
-                    cut_points.append(val[i])
-                    bins_size.append(binsize)
-                    binsize = 0
-                else:
-                    up = quantiles[i] - next_expected_quantile
-                    low = next_expected_quantile - quantiles[i-1]
-                    if up <= low:
-                        cut_points.append(val[i])
-                        bins_size.append(binsize)
-                        binsize = 0
-                    else:
-                        cut_points.append(val[i-1])
-                        bins_size.append(binsize-counts[i])
-                        binsize = counts[i]
-                while next_expected_quantile <= quantiles[i]:
-                    next_expected_quantile = next_expected_quantile + avg_group_size
-                if next_expected_quantile >= x.size:
-                    bins_size.append(x.size - quantiles[i] - binsize)
-                    break
-        if len(cut_points) == 0:
-            return []
-
-        #The bins with size <= min_group_size will be merged with one of the other adiacent bins
+        last_quantile = 0
+        for i in cut_indexes:
+            cut_points.append(val[i])
+            bins_size.append(quantiles[i]-last_quantile)
+            last_quantile = quantiles[i]
+        bins_size.append(sum - last_quantile)
+        # The bins with size <= min_group_size will be merged with one of the other adiacent bins
         self.mergeSmallBins(cut_points, bins_size)
         return cut_points
+
+    def findApproximationIndexex(self,up_index, low_index, current_quantile, quantiles):
+        new_up_i = up_index
+        while new_up_i < len(quantiles):
+            if quantiles[new_up_i] < current_quantile:
+                new_up_i+=1
+            else:
+                break
+        new_low_i = low_index
+        if new_up_i > up_index:
+            new_low_i= new_up_i-1
+        return new_up_i, new_low_i
 
 
     def mergeSmallBins(self, cut_points, bins_size):
@@ -253,8 +263,8 @@ class EqualFrequency:
             bins_size.pop(min_index)
         else:
             bins_size[min_index - 1] = bins_size[min_index - 1] + bins_size[min_index]
-            cut_points.pop(min_index -1)
-            bins_size.pop(min_index -1)
+            cut_points.pop(min_index-1)
+            bins_size.pop(min_index)
 
         self.mergeSmallBins(cut_points, bins_size)
 
@@ -294,11 +304,11 @@ class EqualWidth:
 
         if isinstance(x, pd.Series):
             x = x.to_numpy()
-        min = x.min()
-        bin_width = (x.max() - min)/num_bins
+        minim = x.min()
+        bin_width = (x.max() - minim)/num_bins
         cut_points = []
-        current_cut = min + bin_width
+        current_cut = minim + bin_width
         for i in range(1, num_bins):
             cut_points.append(current_cut)
             current_cut = current_cut + bin_width
-
+        return cut_points
