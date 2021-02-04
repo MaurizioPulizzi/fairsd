@@ -3,7 +3,7 @@ import pandas as pd
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import accuracy_score
 import fairlearn.metrics as fm
-import fairsd.subgroupdiscovery as dsd
+import fairsd as dsd
 
 #Import dataset, training the classifier, producing y_pred
 d = fetch_openml(data_id=1590, as_frame=True)

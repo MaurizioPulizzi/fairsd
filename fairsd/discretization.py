@@ -189,11 +189,11 @@ class EqualFrequency:
 
         up_index = 0
         low_index = 0
-        current_quantile=avg_group_size
+        current_quantile=avg_group_size #again, is quantile * x.size
 
         cut_indexes = []
-        #for each expected quantile, find the approximation
-        while current_quantile < (sum-avg_group_size/2):
+        #for each expected quantile, find his approximation
+        while current_quantile < (sum-avg_group_size/2): # sum is equal to x.size
             up_index, low_index = self.findApproximationIndexex(up_index, low_index, current_quantile, quantiles)
 
             num_up = quantiles[up_index] - current_quantile
@@ -215,6 +215,7 @@ class EqualFrequency:
             bins_size.append(quantiles[i]-last_quantile)
             last_quantile = quantiles[i]
         bins_size.append(sum - last_quantile)
+
         # The bins with size <= min_group_size will be merged with one of the other adiacent bins
         self.mergeSmallBins(cut_points, bins_size)
         return cut_points
