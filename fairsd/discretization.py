@@ -195,7 +195,8 @@ class EqualFrequency:
         #for each expected quantile, find his approximation
         while current_quantile < (sum-avg_group_size/2): # sum is equal to x.size
             up_index, low_index = self.findApproximationIndexex(up_index, low_index, current_quantile, quantiles)
-
+            '''
+            # this commented code use the cut point that best approximates the expected quantile
             num_up = quantiles[up_index] - current_quantile
             num_low = current_quantile - quantiles[low_index]
 
@@ -205,7 +206,13 @@ class EqualFrequency:
             else:
                 if low_index not in cut_indexes:
                     cut_indexes.append(low_index)
+            '''
+            ### here we always choose an approximation by excess of the expected quantile.
+            # This consistency helps create more similarly sized bins
+            if up_index not in cut_indexes:
+                cut_indexes.append(up_index)
             current_quantile += avg_group_size
+            ###
 
         cut_points = []
         bins_size = []

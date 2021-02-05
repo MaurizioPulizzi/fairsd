@@ -17,6 +17,7 @@ class TestMDLP(TestCase):
 
 class TestEqualFrequency(TestCase):
     def test_findCutPoints(self):
+
         discretizer = disc.EqualFrequency(2, 0)
 
         x = np.ones(49)
@@ -36,13 +37,13 @@ class TestEqualFrequency(TestCase):
         self.assertEqual(discretizer.findCutPoints(x), correct_res)
 
         x=np.array([1,2,3,4,5,6,7,8,9,10])
-        self.assertEqual(discretizer.findCutPoints(x), [2,5,7])
+        self.assertEqual(discretizer.findCutPoints(x), [3,5,8])
         discretizer = disc.EqualFrequency(1, 4)
-        self.assertEqual(discretizer.findCutPoints(x), [2, 5, 7])
+        self.assertEqual(discretizer.findCutPoints(x), [3,5,8])
         discretizer = disc.EqualFrequency(1, 0)
-        self.assertEqual(discretizer.findCutPoints(x), [1,2,4,5,6,7,9])
+        self.assertEqual(discretizer.findCutPoints(x), [2, 3, 4, 5, 7, 8, 9])
         x = np.array([1, 2, 2, 2, 2, 6, 7, 8, 9, 10])
-        self.assertEqual(discretizer.findCutPoints(x), [1, 2, 6, 7, 9])
+        self.assertEqual(discretizer.findCutPoints(x), [2, 7, 8, 9])
         
         discretizer = disc.EqualFrequency(2, 0)
         x = np.array([1,7,7,7,7,7,7,8,7,7])
