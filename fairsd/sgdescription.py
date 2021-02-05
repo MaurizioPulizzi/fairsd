@@ -1,30 +1,29 @@
 import numpy as np
 
-class BinaryTarget:
-    """Contains the target for the subgroup discovery task.
-
-    The target can be boolean or Nominal. Only the value contained in the parameter "target_value" will be considered as
-    the true value. In this way also if the target is nominal, it will still be treated as a boolean.
-    """
-
-    def __init__(self, y_true, y_pred=None, target_value=False):
-        """
-        Parameters
-        ----------
-        y_true : string
-            Contains the label of the target.
-        dataset: pandas.DataFrame
-            The dataset is required because it will be checked if the others parameters are coherent
-            (present inside the dataset).
-        y_pred: String, optional
-            Contains the label of the predicted attribute.
-        target_value: bool or String, optional
-
-        """
-
-        self.y_true = y_true
-        self.y_pred = y_pred
-        self.target_value = target_value
+# The following class is no more used in the current version
+#class BinaryTarget:
+#    """Contains the target for the subgroup discovery task.
+#
+#    The target can be boolean or Nominal. Only the value contained in the parameter "target_value" will be considered as
+#    the true value. In this way also if the target is nominal, it will still be treated as a boolean.
+#    """
+#
+#    def __init__(self, y_true, y_pred=None, target_value=False):
+#        """
+#        Parameters
+#        ----------
+#        y_true : string
+#            Contains the label of the target.
+#        dataset: pandas.DataFrame
+#            The dataset is required because it will be checked if the others parameters are coherent
+#            (present inside the dataset).
+#        y_pred: String, optional
+#            Contains the label of the predicted attribute.
+#        target_value: bool or String, optional
+#       """
+#        self.y_true = y_true
+#        self.y_pred = y_pred
+#        self.target_value = target_value
 
 
 class Descriptor:
@@ -79,7 +78,7 @@ class Descriptor:
 
 
 class Description:
-    """List of Descriptors.
+    """List of Descriptors plus other description attributes.
 
     Semantically it is to be interpreted as the conjunction of all the Descriptors contained in the list:
     a dataset record will match the description if each single Descriptor of the description will match with this record.
@@ -129,6 +128,8 @@ class Description:
         Parameters
         ----------
         dataset : pandas.DataFrame
+        set_attributes : bol, default False
+            if this input is True, this method will set also the support attribute
 
         Returns
         -------
@@ -152,7 +153,7 @@ class Description:
             self.support=sum(s)
         return s
 
-    def size(self, dataset): # evaluate if delete this method ############
+    def size(self, dataset):
         """ Return the support of the description and set the support in case this parameters was not set.
 
         :param dataset: pandas.DataFrame
@@ -177,12 +178,13 @@ class Description:
 
     def is_present_in(self, beam):
         """
-        :param beam : array of Description
+        :param beam : list of Description objects
 
         :return: bool
-            True if the current description (self) is present in the list.
-            The current object (Description) has to have the same parameters of another object present in the list.
-            It is not needed that the current object must be physically in the list (same cells of memory).
+            True if the current description (self) is present in the list (beam).
+            Return true iff the current object (Description) have the same parameters of at list another object
+            present in the beam.
+
         """
         for descr in beam:
             equals=True
