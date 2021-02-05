@@ -57,7 +57,7 @@ class SubgroupDiscoveryTask:
                                         dynamic_discretization, self.discretizer)
 
 
-        self.target= BinaryTarget('y_true', 'y_pred', target_value=1) ######### currently target_value is not used
+        self.target= BinaryTarget('y_true', 'y_pred', target_value=1) ######### never used in this version
         self.qf=self.set_qualityfuntion(qf)
 
         self.result_set_size = result_set_size
@@ -83,7 +83,7 @@ class SubgroupDiscoveryTask:
         return qf
 
     def inputChecking(self,
-              X,  # pandas dataframe or numpy array with features
+              X,  # pandas dataframe or numpy array
               y_true,  # numpy array, pandas dataframe, or pandas Series with ground truth labels
               y_pred=None,  # numpy array, pandas dataframe, or pandas Series with classifier's predicted labels
               feature_names=None,  # optional, list with column names in case users supply a numpy array X
@@ -116,6 +116,11 @@ class SubgroupDiscoveryTask:
             raise RuntimeError("numeric_features input must be of list type or None")
         if not isinstance(discretizer, str):
             raise TypeError("discretizer input must be of string type")
+        if discretizer == "mdlp":
+            t = pd.DataFrame(y_true).iloc[:, 0].unique()
+            print(t)
+            if not (t ==[1,0]).all() and not (t ==[0,1]).all():
+                raise RuntimeError("MDLP discretization supports only binary target")
         if not isinstance(dynamic_discretization, bool):
             raise TypeError("dynamic_discretization input must be of bool type")
         if not isinstance(dynamic_discretization, bool):
