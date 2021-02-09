@@ -147,7 +147,8 @@ class EqualFrequency:
         __________
         num_bins : int
             this number is to interpret as the maximum number of bins that will be generated.
-            If this parameter is not specified (0 by deafault), it will be automatically determined.
+            If this parameter is not specified (0 by deafault), it will be automatically determined
+            based on min_bin_size parameter.
         min_bin_size : int
             Represent the minimum size that a bin can have.
 
@@ -168,6 +169,7 @@ class EqualFrequency:
         :param x: numpy array or pandas series
         :return: list of (ascending) ordered cut points
         """
+        #determination of the number of bins
         if self.num_bins >1:
             num_bins = min(self.num_bins, int(x.size/(self.min_group_size*1.2)))
         else:
@@ -207,8 +209,9 @@ class EqualFrequency:
                 if low_index not in cut_indexes:
                     cut_indexes.append(low_index)
             '''
+
             ### here we always choose an approximation by excess of the expected quantile.
-            # This consistency helps create more similarly sized bins
+            # This consistency can help create more similarly sized bins
             if up_index not in cut_indexes:
                 cut_indexes.append(up_index)
             current_quantile += avg_group_size
@@ -228,6 +231,15 @@ class EqualFrequency:
         return cut_points
 
     def findApproximationIndexex(self,up_index, low_index, current_quantile, quantiles):
+        """
+        :param up_index: int
+        :param low_index: int
+        :param current_quantile: float
+        :param quantiles: list of float
+
+        :return: (int, int)
+        """
+
         new_up_i = up_index
         while new_up_i < len(quantiles):
             if quantiles[new_up_i] < current_quantile:
@@ -246,12 +258,15 @@ class EqualFrequency:
         :param bins_size: list
         :return: void
         """
+        # find the smallest bin
         min_smallbin = self.min_group_size
         min_index = 0
         for i in range(len(bins_size)):
             if bins_size[i]<min_smallbin:
                 min_smallbin = bins_size[i]
                 min_index = i
+
+        # check if the smallest bin finded has size lower than the min_group_size
         if min_smallbin == self.min_group_size:
             return
 
