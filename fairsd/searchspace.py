@@ -19,19 +19,18 @@ class SearchSpace:
         :param dataset : pandas.DataFrame
         :param ignore : list of String(s)
             list the attributes to not take into consideration for creating the search space.
-        :param nominal_features : list that contain a subgroup of nominal features
-        :param numeric_features : list that contain a subgroup of numeric features
+        :param nominal_features : list of Strings that contain a subgroup of nominal features
+        :param numeric_features : list of Strings that contain a subgroup of numeric features
         :param dynamic_discretization: boolean
+            if dinamic_discretization is true the numerical features will be discretizized in the extract_search_space()
+            method, otherwise the numerical features will be discretizized here, during the inizialization.
         :param discretizer: Discretizer object
 
         Notes
         -----
         The type of features not present in numeric_features and in nominal_features will be deduced based on the attributes
 
-        In this implementation all the numeric Descriptors created and inserted into the search space
-        will be to discretize
         """
-        self.dynamic_discretization=dynamic_discretization #####NOT USED
         if ignore is None:
             ignore = []
         if nominal_features is None:
@@ -78,7 +77,7 @@ class SearchSpace:
          for expanding the description "current_description".
 
         All descriptors containing attributes present in the current_description will be removed
-        from the returned subset.
+        from the returned search space subset.
 
         Parameters
         ----------
@@ -93,8 +92,8 @@ class SearchSpace:
 
         Notes
         -----
-        "Descriptors" will contain the subset of the search space to return. All the Descriptors not yet discretized
-        in the original search space, will be discretized before being inserted in the "Descriptors" list
+        "Descriptors"  list will contain the subset of the search space to return. All the Descriptors not yet
+        discretized in the original search space, will be discretized before being inserted in the "Descriptors" list.
         """
         if current_description is None:
             current_description = Description()
@@ -121,7 +120,9 @@ class Discretizer:
         :param discretization_type : enumerated
             can be "mdlp" or "equalfreq" or "equalwidth"
         :param target: String, optional
+            this parameter is needed only for supervised discretizations (mdlp)
         :param min_groupsize: int, optional
+            discretize() method will create only subgroups with size >= min_groupsize.
         """
         self.discretization_type = discretization_type
         if discretization_type =='mdlp':
@@ -142,7 +143,7 @@ class Discretizer:
         Parameters
         ----------
         data: pandas.DataFrame
-            Is the dataset.
+            The dataset.
         description: Description
             The discretization will be based only on those tuples of the dataset that match the description.
         feature: String
@@ -151,7 +152,7 @@ class Discretizer:
         Returns
         -------
         list of Descriptor(s)
-            Will be created e returned (in a list) one Descriptor for each bin created in the discretization phase.
+            Will be created and returned (in a list) one Descriptor for each bin created in the discretization phase.
         """
         subset= data[description.to_boolean_array(data)]
         x = subset[feature]
