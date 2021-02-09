@@ -3,10 +3,12 @@ import pandas as pd
 import fairlearn.metrics as flm
 import inspect
 from .sgdescription import Description
-from .sgdescription import BinaryTarget
+#from .sgdescription import BinaryTarget
 from .searchspace import SearchSpace
 from .searchspace import Discretizer
-
+"""
+The class SubgroupDiscoveryTask is an adaptation of the homonymous class of the pysubgroup library.
+"""
 
 quality_function_options = [
     'equalized_odds_difference',
@@ -23,6 +25,8 @@ quality_function_parameters = [
 
 
 class SubgroupDiscoveryTask:
+    """This is an interface class and will contain all the parameters useful for the sg discovery algorithms.
+    """
     def __init__(self,
             X, # pandas dataframe or numpy array with features
             y_true, # numpy array, pandas dataframe, or pandas Series with ground truth labels
@@ -38,6 +42,31 @@ class SubgroupDiscoveryTask:
             min_quality=0.1, # float
             min_support=200 #int
         ):
+        """
+        Parameters
+        ----------
+        X : pandas dataframe or numpy array
+        y_true : numpy array, pandas dataframe, or pandas Series
+            represent the ground truth
+        param y_pred : numpy array, pandas dataframe, or pandas Series
+            contain the predicted values
+        feature_names : list of string
+            this parameter is necessary if the user supply X in a numpy array
+        nominal_features : optional, list of strings
+            list of nominal features
+        numeric_features : optional, list of strings
+            list of nominal features
+        qf : string or callable object
+        discretizer : string
+            can be "mdlp", "equalfrequency" or "equalwidth"
+        dynamic_discretization : boolean
+        result_set_size : int
+        depth : int
+            maximum number of descriptors in a description
+        min_quality : float
+        min_support : int
+            minimum size of a subgroup
+        """
         self.inputChecking(X, y_true, y_pred, feature_names, nominal_features, numeric_features, discretizer,
                            dynamic_discretization, result_set_size, depth, min_quality, min_support)
         if isinstance(X, np.ndarray):
@@ -57,7 +86,7 @@ class SubgroupDiscoveryTask:
                                         dynamic_discretization, self.discretizer)
 
 
-        self.target= BinaryTarget('y_true', 'y_pred', target_value=1) ######### never used in this version
+        # self.target= BinaryTarget('y_true', 'y_pred', target_value=1) ######### never used in this version
         self.qf=self.set_qualityfuntion(qf)
 
         self.result_set_size = result_set_size
@@ -79,7 +108,8 @@ class SubgroupDiscoveryTask:
         sig = inspect.signature(qf).parameters
         for par in quality_function_parameters:
             if par not in sig:
-                raise ValueError("Please use the funtions in the fairlearn.metrics package as quality functions")
+                raise ValueError("Please use the functions in the fairlearn.metrics package as quality functions or "
+                                 "other fuctions with the same interface")
         return qf
 
     def inputChecking(self,
@@ -163,10 +193,9 @@ class ResultSet:
 
     def sg_feature(self,sg_index, X):
         """
-        This method return generate and return the feature of the subgroup with number = sg_number
-        in the current object.
+        This method generate and return the feature of the subgroup with index = sg_index in the current object.
         The result is indeed a boolean array of the same length of the dataset X. Each i-th element of this
-        array is true iff the i-th tuple of X belong to the subgroup.
+        array is true iff the i-th tuple of X belong to the subgroup with index sg_index.
 
         :param sg_index: int, number of the subgroup in the current object
         :param X: pandas DataFrame or numpy array
@@ -199,13 +228,12 @@ class BeamSearch:
         This method execute the Beam Search
 
         :param task : SubgroupDiscoveryTask
-        :return: list of tuples <double, string>
-            each tuple in the list will contain: <quality, subgroup description>
+        :return: ResultSet object
 
         Notes
         -----
-        The list_of_beam variable is: a list of list of tuples. The i-th element of list_of_beam, at the end,
-        will contain the most interesting descriptions formed by i descriptors, together with their quality.
+        The list_of_beam variable is: a list of list of descriptions. The i-th element of list_of_beam, at the end,
+        will contain the most interesting descriptions formed by i descriptors.
         """
         if self.beam_width < task.result_set_size:
             raise RuntimeError('Beam width is smaller than the result set size!')
@@ -269,21 +297,23 @@ class BeamSearch:
 class DSSD:
     """
     This class implements the Diverse Subgroup Set Discovery algorithm (DSSD).
-    This algorithm is a variant of the Beam Search Algorithm that take also into account
+    This algorithm is a variant of the Beam Search Algorithm that also take into account
     the redundancy of the generated subgroups.
-    In this implementation a cover-based redundancy definition is used: roughly, the more tuples in common have two
-    subgroups, the more they are considered redundant.
+    In this implementation a cover-based redundancy definition is used: roughly, the more tuples two subgroups
+    have in common, the more they are considered redundant.
     This algorithm is described in details in the Van Leeuwen and Knobbe's paper "Diverse Subgroup Set Discovery".
     """
     def __init__(self, beam_width=10, a=0.9):
         """
         :param beam_width: int
-        :param a: float, the more a is high, the less the subgroups redundancy is taken into account
+        :param a: float
+            this parameter correspond to the alpha parameter.
+            the more a is high, the less the subgroups redundancy is taken into account.
         """
         if a<0 or a>1:
             raise RuntimeError("a-parameter must be between 0 and 1")
         self.beam_width=beam_width
-        self.a= 1-a
+        self.a= 1-a # for future calculations it is more practical to memorize 1-a
 
     def execute(self, task):
         """
@@ -292,11 +322,11 @@ class DSSD:
 
         Notes
         -----
-        The algorithm is divided in trhee phases:
+        The algorithm is divided in three phases:
         Phase 1: a modified beam search algorithm is performed to find a first non-redundant subset
         Phase 2: Dominance Pruning - the algorithm try to generalize the subgroups finded in the previous phase
         Phase 3: The subgroups to return are chosen among the sg-set resulting from the previous phase. Again, the
-            subgroups to put in the result set are chosen by taking into account both quality and diversity
+            subgroups to put in the result set are chosen by taking into account both quality and diversity.
         """
         if self.beam_width < task.result_set_size:
             raise RuntimeError('Beam width is smaller than the result set size!')
@@ -304,15 +334,6 @@ class DSSD:
         # PHASE 1 - MODIFIED BEAM SEARCH
         list_of_beam = list()
         self.redundancy_aware_beam_search(list_of_beam, task)
-
-        """ 
-        #Only for test -- to delete
-        subgroups = list()
-        for l in list_of_beam[1:]:
-            subgroups.extend(l)
-        subgroups.sort(reverse=True)
-        return ResultSet(subgroups[:task.result_set_size], task.data.shape[0])
-        """
 
         # PHASE 2 - DOMINANCE PRUNING
         subgroups = list()
@@ -351,7 +372,7 @@ class DSSD:
         Notes
         -----
         Starting from the beam of the previous level, all the candidates subgroups (descriptions) are generated.
-        After this the beam of the current level is generated by calling the beam_creation method.
+        After this, the beam of the current level is generated by calling the beam_creation method.
         """
         list_of_beam.append(list())
         list_of_beam[0] = [Description()]
@@ -363,11 +384,11 @@ class DSSD:
             list_of_beam.append(list())
             #print(depth)
 
-            tuples_sg_matrix = []  # boolean matrix where rows are candidates subgroups and columns are tuples of the dataset
-            # tuples_sg_matrix[i][j] == true iff subgroup i contain tuple j
-            quality_array = []  # contains the quality of each candidate subgroup
-            support_array = []  # contains the support of each candidate subgroup
-            decriptions_list = list()  # contains the description object of each candidate subgroup
+            tuples_sg_matrix = [] # boolean matrix where rows are candidates subgroups and columns are tuples of the dataset
+                                  # tuples_sg_matrix[i][j] == true iff subgroup i contain tuple j
+            quality_array = []  # will contain the quality of each candidate subgroup
+            support_array = []  # will contain the support of each candidate subgroup
+            decriptions_list = list()  # will contain the description object of each candidate subgroup
 
             # generation of candidates subgroups
             for last_sg in list_of_beam[depth]:  # for each subgroup in the previous beam
@@ -397,6 +418,7 @@ class DSSD:
                     if quality < task.min_quality:
                         continue
 
+                    # insert current subgroup in the candidates
                     tuples_sg_matrix.append(sg_belonging_feature)
                     support_array.append(support)
                     quality_array.append(quality)
@@ -474,8 +496,8 @@ class DSSD:
         Notes
         -----
         In the code there is a variable called a_tothe_c_array. This variable represents a vector of weights,
-        each weight refers to a tuple of the dataset. Every time that a subgroup X is selected (inserted to the beam),
-        all the weights relatives to the tuples belonging to X are updated. In particular, they are decreased by
+        each weight refers to a tuple of the dataset. Every time that a subgroup sg is selected (inserted to the beam),
+        all the weights relatives to the tuples belonging to sg are updated. In particular, they are decreased by
         multiplying them by a.
         At each round of the for loop, the subgroup with the highest product between its quality and its weight is
         selected. The weight of a subgroup is obtained by averaging the weights of all the tuples it contains.
