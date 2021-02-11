@@ -1,6 +1,6 @@
 from .sgdescription import Description
 from .sgdescription import Descriptor
-from .sgdescription import BinaryTarget
+#from .sgdescription import BinaryTarget
 from .searchspace import SearchSpace
 from .searchspace import Discretizer
 from .qualitymeasures import QualityFunction

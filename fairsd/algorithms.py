@@ -35,11 +35,11 @@ class SubgroupDiscoveryTask:
             nominal_features = None, #optional, list of nominal features
             numeric_features = None, #optional, list of nominal features
             qf='equalized_odds_difference', # str or callable object
-            discretizer='equalfreq', # str
-            dynamic_discretization=False, #boolean
-            result_set_size=10, # int
+            discretizer='mdlp', # str
+            dynamic_discretization=True, #boolean
+            result_set_size=5, # int
             depth=3, # int
-            min_quality=0.1, # float
+            min_quality=0, # float
             min_support=200 #int
         ):
         """
@@ -148,7 +148,6 @@ class SubgroupDiscoveryTask:
             raise TypeError("discretizer input must be of string type")
         if discretizer == "mdlp":
             t = pd.DataFrame(y_true).iloc[:, 0].unique()
-            print(t)
             if not (t ==[1,0]).all() and not (t ==[0,1]).all():
                 raise RuntimeError("MDLP discretization supports only binary target")
         if not isinstance(dynamic_discretization, bool):
@@ -203,7 +202,7 @@ class ResultSet:
         """
         if(sg_index>=len(self.descriptions_list) or sg_index<0):
             raise RuntimeError("The requested subgroup doesn't exists")
-        return pd.Series(self.descriptions_list[sg_index].to_boolean_array(X), name=str(sg_index))
+        return pd.Series(self.descriptions_list[sg_index].to_boolean_array(X), name=str("sg"+str(sg_index)))
 
     def __repr__(self):
         res=""
@@ -213,6 +212,9 @@ class ResultSet:
 
     def print(self):
         print(self.__repr__())
+
+    def to_string(self):
+        return self.__repr__()
 
 
 class BeamSearch:
@@ -341,6 +343,9 @@ class DSSD:
         if len(list_of_beam)>2:
             for l in list_of_beam[2:]:
                 self.dominance_pruning(l, subgroups, task)
+        if len(subgroups)<task.result_set_size:
+            subgroups.sort(reverse=True)
+            return ResultSet(subgroups, task.data.shape[0])
 
         # PHASE 3 - SUBGROUP SELECTION
         tuples_sg_matrix = []
