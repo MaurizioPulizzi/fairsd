@@ -104,9 +104,9 @@ class Description:
             if s.is_numeric:
                 low = str(s.low_bound) if s.low_bound is not None else "-infinite"
                 up = str(s.up_bound) if s.up_bound is not None else "+infinite"
-                descr = descr + s.attribute_name + " = '(" + low +", "+ up +"]' AND "
+                descr = descr + s.attribute_name + " = (" + low +", "+ up +"] AND "
             else:
-                descr = descr+ s.attribute_name+" = '"+str(s.attribute_value)+"' AND "
+                descr = descr+ s.attribute_name+' = "'+str(s.attribute_value)+'" AND '
         if descr != "":
             descr = descr[:-4]
         return descr
