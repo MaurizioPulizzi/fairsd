@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 
 # The following class is no more used in the current version
 #class BinaryTarget:
@@ -110,6 +111,9 @@ class Description:
             descr = descr[:-4]
         return descr
 
+    def to_string(self):
+        return self.__repr__()
+
     def __lt__(self, other):
         """Compare the current description (self) with another description (other).
 
@@ -133,12 +137,13 @@ class Description:
 
         Returns
         -------
-        array of boolean:
+        pandas Series of boolean type:
             The array will have the length of the passed  dataset (number of rows).
             Each element of the array will be true iff the description (self) match the corresponding row of the dataset.
             If a description is empty, the returned array will have all elements equal to True.
         """
         s = np.full(dataset.shape[0], True)
+        s = pd.Series(s)
         for i in range(0, len(self.Descriptors)):
             if self.Descriptors[i].is_numeric:
                 if self.Descriptors[i].low_bound is not None:
@@ -153,13 +158,15 @@ class Description:
             self.support=sum(s)
         return s
 
-    def size(self, dataset):
+    def size(self, dataset=None):
         """ Return the support of the description and set the support in case this parameters was not set.
 
         :param dataset: pandas.DataFrame
         :return: int
         """
         if self.support is None:
+            if dataset is None:
+                raise RuntimeError ("dataset argument required in Description.size()")
             self.to_boolean_array(dataset, set_attributes=True)
         return self.support
 

@@ -187,8 +187,13 @@ class ResultSet:
             row = [d.quality, d.__repr__(), d.support, d.support/self.X_size]
             lod.append(row)
         columns = ['quality', 'description', 'size', 'proportion']
-        index = [("sg"+str(x)) for x in range(len(self.descriptions_list))]
+        index = [str(x) for x in range(len(self.descriptions_list))]
         return pd.DataFrame(lod, index=index, columns=columns)
+
+    def get_description(self, sg_index):
+        if (sg_index >= len(self.descriptions_list) or sg_index < 0):
+            raise RuntimeError("The requested subgroup doesn't exists")
+        return self.descriptions_list[sg_index]
 
     def sg_feature(self,sg_index, X):
         """
