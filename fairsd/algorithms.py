@@ -231,6 +231,8 @@ class BeamSearch:
         """
         :param beam_width : int
         """
+        if beam_width<1:
+            raise RuntimeError("beam_width must be greater than 0")
         self.beam_width = beam_width
 
     def execute(self, task):
@@ -313,13 +315,15 @@ class DSSD:
     have in common, the more they are considered redundant.
     This algorithm is described in details in the Van Leeuwen and Knobbe's paper "Diverse Subgroup Set Discovery".
     """
-    def __init__(self, beam_width=10, a=0.9):
+    def __init__(self, beam_width=20, a=0.9):
         """
         :param beam_width: int
         :param a: float
             this parameter correspond to the alpha parameter.
             the more a is high, the less the subgroups redundancy is taken into account.
         """
+        if beam_width<1:
+            raise RuntimeError("beam_width must be greater than 0")
         if a<0 or a>1:
             raise RuntimeError("a-parameter must be between 0 and 1")
         self.beam_width=beam_width
