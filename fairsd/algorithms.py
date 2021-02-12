@@ -35,11 +35,12 @@ class SubgroupDiscoveryTask:
             nominal_features = None, #optional, list of nominal features
             numeric_features = None, #optional, list of nominal features
             qf='equalized_odds_difference', # str or callable object
-            discretizer='mdlp', # str
+            discretizer='equalfreq', # str
+            num_bins = 6,
             dynamic_discretization=True, #boolean
             result_set_size=5, # int
             depth=3, # int
-            min_quality=0, # float
+            min_quality=0.1, # float
             min_support=200 #int
         ):
         """
@@ -48,7 +49,7 @@ class SubgroupDiscoveryTask:
         X : pandas dataframe or numpy array
         y_true : numpy array, pandas dataframe, or pandas Series
             represent the ground truth
-        param y_pred : numpy array, pandas dataframe, or pandas Series
+        y_pred : numpy array, pandas dataframe, or pandas Series
             contain the predicted values
         feature_names : list of string
             this parameter is necessary if the user supply X in a numpy array
@@ -59,6 +60,8 @@ class SubgroupDiscoveryTask:
         qf : string or callable object
         discretizer : string
             can be "mdlp", "equalfrequency" or "equalwidth"
+        num_bins : int
+            maximum number of bins that a numerical feature discretization operation will produce
         dynamic_discretization : boolean
         result_set_size : int
         depth : int
@@ -81,7 +84,7 @@ class SubgroupDiscoveryTask:
         else:
             self.there_is_y_pred = False
 
-        self.discretizer = Discretizer(discretization_type=discretizer, target='y_true')
+        self.discretizer = Discretizer(discretization_type=discretizer, target='y_true', num_bins=num_bins)
         self.search_space = SearchSpace(self.data, ['y_true', 'y_pred'], nominal_features, numeric_features,
                                         dynamic_discretization, self.discretizer)
 
@@ -115,16 +118,16 @@ class SubgroupDiscoveryTask:
     def inputChecking(self,
               X,  # pandas dataframe or numpy array
               y_true,  # numpy array, pandas dataframe, or pandas Series with ground truth labels
-              y_pred=None,  # numpy array, pandas dataframe, or pandas Series with classifier's predicted labels
-              feature_names=None,  # optional, list with column names in case users supply a numpy array X
-              nominal_features=None,  # optional, list of nominal features
-              numeric_features=None,  # optional, list of nominal features
-              discretizer='equalfreq',  # str
-              dynamic_discretization=False,  # boolean
-              result_set_size=10,  # int
-              depth=3,  # int
-              min_quality=0.1,  # float
-              min_support=200  # int
+              y_pred,  # numpy array, pandas dataframe, or pandas Series with classifier's predicted labels
+              feature_names,  # optional, list with column names in case users supply a numpy array X
+              nominal_features,  # optional, list of nominal features
+              numeric_features,  # optional, list of nominal features
+              discretizer,  # str
+              dynamic_discretization,  # boolean
+              result_set_size,  # int
+              depth,  # int
+              min_quality,  # float
+              min_support  # int
         ):
         if not (isinstance(X, pd.DataFrame) or isinstance(X, np.ndarray)):
             raise TypeError("X must be of type numpy.ndarray or pandas.DataFrame")
