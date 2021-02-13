@@ -14,3 +14,6 @@ For common usage refer to the [Jupyter notebooks](https://github.com/MaurizioPul
 ## Contributors
 * [Maurizio Pulizzi](https://github.com/MaurizioPulizzi)
 * [Hilde Weerts](https://github.com/hildeweerts)
+
+## Acknowledgements
+Some parts of the code are an adaptation of the [pysubgroup package](https://github.com/flemmerich/pysubgroup). These parts are indicated in the code.
