@@ -7,10 +7,8 @@ The package has been designed to offer the user the possibility to use different
 
 ## Usage
 For common usage refer to the [Jupyter notebooks](https://github.com/MaurizioPulizzi/fairsd/tree/main/notebooks). In particular:
-* [Quick start - use case example](https://github.com/MaurizioPulizzi/fairsd/blob/main/notebooks/quickstart.ipynb).
-* [Parameters settings](https://github.com/MaurizioPulizzi/fairsd/blob/main/notebooks/parameters_settings.ipynb), for a detailed explanation of how inizialize the SugbgroupDiscoveryTask object.
-* [Quality measures usage](https://github.com/MaurizioPulizzi/fairsd/blob/main/notebooks/quality_measures.ipynb).
-* [Offered Top-K subgroup discovery algorithms](https://github.com/MaurizioPulizzi/fairsd/blob/main/notebooks/subgroup_discovery_algorithms.ipynb).
+* [Quick start - FairSD usage](https://github.com/MaurizioPulizzi/fairsd/blob/main/notebooks/fairsd_usage.ipynb).
+* [FairSD settings](https://github.com/MaurizioPulizzi/fairsd/blob/main/notebooks/fairsd_settings.ipynb), for a detailed explanation of how inizialize the SugbgroupDiscoveryTask object and use the implemented subgroup discovery algorithms.
 
 
 ## Contributors
