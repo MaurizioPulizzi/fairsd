@@ -1,7 +1,9 @@
 # FairSD
 
-FairSD is a package that implement top-k subgroup discovery algorithms for finding the most discriminated subgroups in a dataset or in a machine learning model. The meaning of “discriminated subgroups” refers to the Fairness-aware Machine Learning topic.<br/>
-This package has been designed to offer the user the possibility to use different discrimination measures as quality measures and also offers integration with the [Fairlearn library]( https://fairlearn.github.io/). This integration makes possible to use all the [Fairlearn metrics](https://fairlearn.github.io/v0.6.0/api_reference/fairlearn.metrics.html) as quality measures. The user can also define custom quality measures by extending the QualityFunction class present in the [fairsd.qualitymeasures](https://github.com/MaurizioPulizzi/fairsd/blob/main/fairsd/qualitymeasures.py) module.
+FairSD is a package that implements top-k subgroup discovery algorithms for identifying subgroups that may be treated unfairly by a machine learning model.<br/>
+
+The package has been designed to offer the user the possibility to use different notions of fairness as quality measures. Integration with the [Fairlearn]( https://fairlearn.github.io/) package allows the user to use all the [fairlearn metrics](https://fairlearn.github.io/v0.6.0/api_reference/fairlearn.metrics.html) as  quality measures. The user can also define custom quality measures, by extending the QualityFunction class present in the [fairsd.qualitymeasures](https://github.com/MaurizioPulizzi/fairsd/blob/main/fairsd/qualitymeasures.py) module.
+
 
 ## Usage
 For common usage refer to the [Jupyter notebooks](https://github.com/MaurizioPulizzi/fairsd/tree/main/notebooks). In particular:
@@ -14,6 +16,7 @@ For common usage refer to the [Jupyter notebooks](https://github.com/MaurizioPul
 ## Contributors
 * [Maurizio Pulizzi](https://github.com/MaurizioPulizzi)
 * [Hilde Weerts](https://github.com/hildeweerts)
+
 
 ## Acknowledgements
 Some parts of the code are an adaptation of the [pysubgroup package](https://github.com/flemmerich/pysubgroup). These parts are indicated in the code.
