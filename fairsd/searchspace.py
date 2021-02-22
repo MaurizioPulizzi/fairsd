@@ -14,7 +14,7 @@ class SearchSpace:
         will contain all possible  numeric Descriptors.
     """
 
-    def __init__(self, dataset, ignore=None, nominal_features=None, numeric_features=None, dynamic_discretization=False, discretizer=None):
+    def __init__(self, dataset, ignore=None, nominal_features=None, numeric_features=None, dynamic_discretization=False, discretizer=None, sensitiive_features=None):
         """
         :param dataset : pandas.DataFrame
         :param ignore : list of String(s)
@@ -25,12 +25,14 @@ class SearchSpace:
             if dinamic_discretization is true the numerical features will be discretizized in the extract_search_space()
             method, otherwise the numerical features will be discretizized here, during the inizialization.
         :param discretizer: Discretizer object
+        :param sensitiive_features: List of str
 
         Notes
         -----
         The type of features not present in numeric_features and in nominal_features will be deduced based on the attributes
 
         """
+        self.sensitiive_features = sensitiive_features
         if ignore is None:
             ignore = []
         if nominal_features is None:
@@ -98,6 +100,8 @@ class SearchSpace:
         if current_description is None:
             current_description = Description()
         to_exclude = current_description.get_attributes()
+        if len(to_exclude) == 0:
+            to_exclude = [i for i in list(dataset.columns) if i not in self.sensitiive_features]
         Descriptors = []
         for Descriptor in self.nominal_Descriptors:
             if Descriptor.attribute_name not in to_exclude:

@@ -21,3 +21,14 @@ class QualityFunction(ABC):
             Real number indicating rhe calculated quality.
         """
         pass
+
+
+class EqualOpportunityDiff(QualityFunction):
+    def evaluate(self, y_true, y_pred, sensitive_features):
+        s0y_true = (y_true & ~sensitive_features).sum()
+        s0y_true = 1 if s0y_true == 0 else s0y_true
+        p_s0 = (y_true & y_pred & ~sensitive_features).sum() / s0y_true
+        s1y_true = (y_true & sensitive_features).sum()
+        s1y_true = 1 if s1y_true == 0 else s1y_true
+        p_s1 = (y_true & y_pred & sensitive_features).sum() / s1y_true
+        return p_s0-p_s1

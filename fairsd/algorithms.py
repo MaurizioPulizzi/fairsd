@@ -32,6 +32,7 @@ class SubgroupDiscoveryTask:
             y_true, # numpy array, pandas dataframe, or pandas Series with ground truth labels
             y_pred = None, # numpy array, pandas dataframe, or pandas Series with classifier's predicted labels
             feature_names=None, # optional, list with column names in case users supply a numpy array X
+            sensitive_features = None, #list of sensitive features names (str)
             nominal_features = None, #optional, list of nominal features
             numeric_features = None, #optional, list of nominal features
             qf='equalized_odds_difference', # str or callable object
@@ -40,7 +41,7 @@ class SubgroupDiscoveryTask:
             dynamic_discretization=True, #boolean
             result_set_size=5, # int
             depth=3, # int
-            min_quality=0.1, # float
+            min_quality=0, # float
             min_support=200 #int
         ):
         """
@@ -53,6 +54,8 @@ class SubgroupDiscoveryTask:
             contain the predicted values
         feature_names : list of string
             this parameter is necessary if the user supply X in a numpy array
+        sensitive_features: list of string
+            this list contains the names of the sensitive features
         nominal_features : optional, list of strings
             list of nominal features
         numeric_features : optional, list of strings
@@ -70,8 +73,8 @@ class SubgroupDiscoveryTask:
         min_support : int
             minimum size of a subgroup
         """
-        self.inputChecking(X, y_true, y_pred, feature_names, nominal_features, numeric_features, discretizer,
-                           dynamic_discretization, result_set_size, depth, min_quality, min_support)
+        self.inputChecking(X, y_true, y_pred, feature_names, sensitive_features, nominal_features, numeric_features,
+                           discretizer, dynamic_discretization, result_set_size, depth, min_quality, min_support)
         if isinstance(X, np.ndarray):
             self.data = pd.DataFrame(X, columns=feature_names)
         else:
@@ -83,10 +86,10 @@ class SubgroupDiscoveryTask:
             self.there_is_y_pred =True
         else:
             self.there_is_y_pred = False
-
+        self.sensitive_features=sensitive_features
         self.discretizer = Discretizer(discretization_type=discretizer, target='y_true', num_bins=num_bins)
         self.search_space = SearchSpace(self.data, ['y_true', 'y_pred'], nominal_features, numeric_features,
-                                        dynamic_discretization, self.discretizer)
+                                        dynamic_discretization, self.discretizer, sensitive_features)
 
 
         # self.target= BinaryTarget('y_true', 'y_pred', target_value=1) ######### never used in this version
@@ -120,6 +123,7 @@ class SubgroupDiscoveryTask:
               y_true,  # numpy array, pandas dataframe, or pandas Series with ground truth labels
               y_pred,  # numpy array, pandas dataframe, or pandas Series with classifier's predicted labels
               feature_names,  # optional, list with column names in case users supply a numpy array X
+              sensitive_features,
               nominal_features,  # optional, list of nominal features
               numeric_features,  # optional, list of nominal features
               discretizer,  # str
@@ -143,6 +147,8 @@ class SubgroupDiscoveryTask:
         if isinstance(X, np.ndarray):
             if (not isinstance(feature_names, list)) or len(feature_names) != X.shape[1]:
                 raise RuntimeError("If X is a numpy.ndarray, feature_names must contain the names of the colums")
+        if sensitive_features is not None and not isinstance(sensitive_features, list):
+            raise RuntimeError("sensitive_features input must be of list type or None")
         if nominal_features is not None and not isinstance(nominal_features, list):
             raise RuntimeError("nominal_features input must be of list type or None")
         if numeric_features is not None and not isinstance(nominal_features, list):
@@ -399,7 +405,7 @@ class DSSD:
             # Generation of the beam with number of descriptors = depth+1
 
             list_of_beam.append(list())
-            #print(depth)
+            print("DEPTH: "+str(depth+1))
 
             tuples_sg_matrix = [] # boolean matrix where rows are candidates subgroups and columns are tuples of the dataset
                                   # tuples_sg_matrix[i][j] == true iff subgroup i contain tuple j
@@ -426,14 +432,41 @@ class DSSD:
                     # check min support
                     if support < task.min_support:
                         continue
+                    # comparison with new descriptor alone
+                    sel_feature = Description([sel]).to_boolean_array(task.data)
                     # evaluate subgroup
                     if task.there_is_y_pred:
                         quality = task.qf(y_true=task.data['y_true'], y_pred=task.data['y_pred'],
                                           sensitive_features=sg_belonging_feature)
+                        ### to evaluate
+                        sel_quality = task.qf(y_true=task.data['y_true'], y_pred=task.data['y_pred'],
+                                          sensitive_features=sel_feature)
                     else:
                         quality = task.qf(y_true=task.data['y_true'], sensitive_features=sg_belonging_feature)
-                    if quality < task.min_quality:
+                        ### to evaluate
+                        sel_quality = task.qf(y_true=task.data['y_true'], sensitive_features=sel_feature)
+
+                    # if the quality of the new descriptor has deteriorated by merging the new descriptor
+                    # with the current description, we do not add the new descriptor
+                    ### to evaluate
+                    if quality < task.min_quality or quality < sel_quality:
                         continue
+                    '''
+                    # This is for allowing descriptions with negative quality in the first beam
+                    if depth>0 and (quality < task.min_quality or quality < sel_quality):
+                        continue
+                    '''
+
+                    # This code is for apriori discard those descriptions dominated by another descriptions not containing sensitive features
+                    pruned_des = []
+                    new_description.set_quality(quality)
+                    self.dominance_pruning([new_description], pruned_des, task)
+                    pruned_des.sort(reverse=True)
+                    pruned_attr = pruned_des[0].get_attributes()
+                    any_in = any(i in task.sensitive_features for i in pruned_attr)
+                    if not any_in:
+                        continue
+
 
                     # insert current subgroup in the candidates
                     tuples_sg_matrix.append(sg_belonging_feature)
@@ -450,6 +483,10 @@ class DSSD:
             self.beam_creation(tuples_sg_matrix, support_array, quality_array, decriptions_list,
                                list_of_beam[depth + 1], self.beam_width)
 
+
+            for d in list_of_beam[depth + 1]:
+                print(d)
+            print(" ")
             depth += 1
 
     def dominance_pruning(self, subgroups, pruned_sgs, task):
@@ -519,6 +556,14 @@ class DSSD:
         At each round of the for loop, the subgroup with the highest product between its quality and its weight is
         selected. The weight of a subgroup is obtained by averaging the weights of all the tuples it contains.
         """
+
+        if len(decriptions_list) <= beam_width:
+            for i in range(len(decriptions_list)):
+                descr = decriptions_list[i]
+                descr.set_quality(quality_array[i])
+                # isertion of the description in the beam
+                beam.append(descr)
+            return
 
         # sort in a way that, in case of equal quality, groups with highter support are preferred
         sorted_index = np.argsort(support_array)[::-1]
