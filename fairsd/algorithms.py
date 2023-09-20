@@ -3,7 +3,6 @@ import pandas as pd
 import fairlearn.metrics as flm
 import inspect
 from .sgdescription import Description
-#from .sgdescription import BinaryTarget
 from .searchspace import SearchSpace
 from .searchspace import Discretizer
 """
@@ -42,7 +41,8 @@ class SubgroupDiscoveryTask:
             result_set_size=5, # int
             depth=3, # int
             min_quality=0, # float
-            min_support=200 #int
+            min_support=200, #int
+            min_support_ratio=0.1 #float
         ):
         """
         Parameters
@@ -72,9 +72,11 @@ class SubgroupDiscoveryTask:
         min_quality : float
         min_support : int
             minimum size of a subgroup
+        min_support_ratio : float
+            minimum proportion of a subgroup compared to the whole dataset size
         """
         self.inputChecking(X, y_true, y_pred, feature_names, sensitive_features, nominal_features, numeric_features,
-                           discretizer, dynamic_discretization, result_set_size, depth, min_quality, min_support)
+                           discretizer, dynamic_discretization, result_set_size, depth, min_quality, min_support, min_support_ratio)
         if isinstance(X, np.ndarray):
             self.data = pd.DataFrame(X, columns=feature_names)
         else:
@@ -92,14 +94,13 @@ class SubgroupDiscoveryTask:
                                         dynamic_discretization, self.discretizer, sensitive_features)
 
 
-        # self.target= BinaryTarget('y_true', 'y_pred', target_value=1) ######### never used in this version
         self.qf=self.set_qualityfuntion(qf)
 
         self.result_set_size = result_set_size
         self.depth = depth
         self.min_quality = min_quality
         self.min_support = min_support
-
+        self.min_support_ratio = min_support_ratio
 
 
     def set_qualityfuntion(self, qf):
@@ -131,7 +132,8 @@ class SubgroupDiscoveryTask:
               result_set_size,  # int
               depth,  # int
               min_quality,  # float
-              min_support  # int
+              min_support,  # int
+              min_support_ratio # float
         ):
         if not (isinstance(X, pd.DataFrame) or isinstance(X, np.ndarray)):
             raise TypeError("X must be of type numpy.ndarray or pandas.DataFrame")
@@ -165,10 +167,12 @@ class SubgroupDiscoveryTask:
             raise TypeError("dynamic_discretization input must be of bool type")
         if not isinstance(result_set_size, int) or result_set_size<1:
             raise RuntimeError("result_set_size input must be greater than 0")
-        if not isinstance(depth, int) or result_set_size<1:
+        if not isinstance(depth, int):
             raise RuntimeError("depth input must be greater than 0")
-        if not isinstance(min_support, int) or result_set_size<1:
+        if not isinstance(min_support, int):
             raise RuntimeError("min_support input must be greater than 0")
+        if not isinstance(min_support_ratio, float):
+            raise RuntimeError("min_support_ratio input must be of float type")
         if min_quality>1 or min_quality<0:
             raise RuntimeError("min_quality input must be between 0 and 1")
 
@@ -277,10 +281,10 @@ class BeamSearch:
                         continue
 
                     sg_belonging_feature = new_description.to_boolean_array(task.data, set_attributes=True)
-                    #check min support
-                    if new_description.size(task.data)<task.min_support:
+                    # check min support
+                    if new_description.size(task.data)<task.min_support or new_description.size(task.data)<task.min_support_ratio*task.data.shape[0]:
                         continue
-                    #evaluate subgroup
+                    # evaluate subgroup
                     if task.there_is_y_pred:
                         quality=task.qf(y_true = task.data['y_true'], y_pred = task.data['y_pred'],
                                         sensitive_features =sg_belonging_feature)
@@ -430,7 +434,7 @@ class DSSD:
                     sg_belonging_feature = new_description.to_boolean_array(task.data, set_attributes=True)
                     support = new_description.support
                     # check min support
-                    if support < task.min_support:
+                    if support < task.min_support or support < task.min_support_ratio * task.data.shape[0]:
                         continue
                     # comparison with new descriptor alone
                     sel_feature = Description([sel]).to_boolean_array(task.data)
