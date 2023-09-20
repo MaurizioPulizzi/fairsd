@@ -463,9 +463,10 @@ class DSSD:
                     self.dominance_pruning([new_description], pruned_des, task)
                     pruned_des.sort(reverse=True)
                     pruned_attr = pruned_des[0].get_attributes()
-                    any_in = any(i in task.sensitive_features for i in pruned_attr)
-                    if not any_in:
-                        continue
+                    if task.sensitive_features is not None:
+                        any_in = any(i in task.sensitive_features for i in pruned_attr)
+                        if not any_in:
+                            continue
 
 
                     # insert current subgroup in the candidates
