@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import fairlearn.metrics as flm
 import inspect
+import logging
 from .sgdescription import Description
 from .searchspace import SearchSpace
 from .searchspace import Discretizer
@@ -42,7 +43,8 @@ class SubgroupDiscoveryTask:
             depth=3, # int
             min_quality=0, # float
             min_support=200, #int
-            min_support_ratio=0.1 #float
+            min_support_ratio=0.1, #float
+            logging_level=logging.INFO
         ):
         """
         Parameters
@@ -75,6 +77,7 @@ class SubgroupDiscoveryTask:
         min_support_ratio : float
             minimum proportion of a subgroup compared to the whole dataset size
         """
+        logging.basicConfig(level=logging_level)
         self.inputChecking(X, y_true, y_pred, feature_names, sensitive_features, nominal_features, numeric_features,
                            discretizer, dynamic_discretization, result_set_size, depth, min_quality, min_support, min_support_ratio)
         if isinstance(X, np.ndarray):
@@ -409,7 +412,7 @@ class DSSD:
             # Generation of the beam with number of descriptors = depth+1
 
             list_of_beam.append(list())
-            print("DEPTH: "+str(depth+1))
+            logging.debug("DEPTH: "+str(depth+1))
 
             tuples_sg_matrix = [] # boolean matrix where rows are candidates subgroups and columns are tuples of the dataset
                                   # tuples_sg_matrix[i][j] == true iff subgroup i contain tuple j
@@ -490,8 +493,8 @@ class DSSD:
 
 
             for d in list_of_beam[depth + 1]:
-                print(d)
-            print(" ")
+                logging.debug(d)
+            logging.debug(" ")
             depth += 1
 
     def dominance_pruning(self, subgroups, pruned_sgs, task):
