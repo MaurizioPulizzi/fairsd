@@ -44,6 +44,7 @@ class SubgroupDiscoveryTask:
             min_quality=0, # float
             min_support=200, #int
             min_support_ratio=0.1, #float
+            max_support_ratio=1.0, #float
             logging_level=logging.INFO
         ):
         """
@@ -76,6 +77,10 @@ class SubgroupDiscoveryTask:
             minimum size of a subgroup
         min_support_ratio : float
             minimum proportion of a subgroup compared to the whole dataset size
+        max_support_ratio : float
+            maximum proportion of a subgroup compared to the whole dataset size
+        logging_level : int
+            logging level
         """
         logging.basicConfig(level=logging_level)
         self.inputChecking(X, y_true, y_pred, feature_names, sensitive_features, nominal_features, numeric_features,
@@ -104,6 +109,7 @@ class SubgroupDiscoveryTask:
         self.min_quality = min_quality
         self.min_support = min_support
         self.min_support_ratio = min_support_ratio
+        self.max_support_ratio = max_support_ratio
 
 
     def set_qualityfuntion(self, qf):
@@ -285,7 +291,9 @@ class BeamSearch:
 
                     sg_belonging_feature = new_description.to_boolean_array(task.data, set_attributes=True)
                     # check min support
-                    if new_description.size(task.data)<task.min_support or new_description.size(task.data)<task.min_support_ratio*task.data.shape[0]:
+                    if new_description.size(task.data)<task.min_support \
+                        or new_description.size(task.data)<task.min_support_ratio*task.data.shape[0] \
+                            or new_description.size(task.data)>task.max_support_ratio*task.data.shape[0]:
                         continue
                     # evaluate subgroup
                     if task.there_is_y_pred:
@@ -437,7 +445,9 @@ class DSSD:
                     sg_belonging_feature = new_description.to_boolean_array(task.data, set_attributes=True)
                     support = new_description.support
                     # check min support
-                    if support < task.min_support or support < task.min_support_ratio * task.data.shape[0]:
+                    if support < task.min_support \
+                        or support < task.min_support_ratio * task.data.shape[0] \
+                            or support > task.max_support_ratio * task.data.shape[0]:
                         continue
                     # comparison with new descriptor alone
                     sel_feature = Description([sel]).to_boolean_array(task.data)
