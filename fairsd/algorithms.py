@@ -44,7 +44,7 @@ class SubgroupDiscoveryTask:
             min_quality=0, # float
             min_support=200, #int
             min_support_ratio=0.1, #float
-            max_support_ratio=1.0, #float
+            max_support_ratio=0.5, #float
             logging_level=logging.INFO
         ):
         """
@@ -213,6 +213,8 @@ class ResultSet:
         return pd.DataFrame(lod, index=index, columns=columns)
 
     def get_description(self, sg_index):
+        if not sg_index:
+            return None
         if (sg_index >= len(self.descriptions_list) or sg_index < 0):
             raise RuntimeError("The requested subgroup doesn't exists")
         return self.descriptions_list[sg_index]
