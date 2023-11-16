@@ -200,7 +200,7 @@ class ResultSet:
         self.X_size = x_size
 
     def to_dataframe(self):
-        """ This method convert the result set into a dataframe
+        """ Convert the result set into a dataframe
 
         :return: pandas.Dataframe
         """
@@ -213,8 +213,6 @@ class ResultSet:
         return pd.DataFrame(lod, index=index, columns=columns)
 
     def get_description(self, sg_index):
-        if not sg_index:
-            return None
         if (sg_index >= len(self.descriptions_list) or sg_index < 0):
             raise RuntimeError("The requested subgroup doesn't exists")
         return self.descriptions_list[sg_index]

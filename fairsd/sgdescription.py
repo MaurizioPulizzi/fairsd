@@ -94,25 +94,31 @@ class Description:
             self.Descriptors=Descriptors
         self.support = None
 
-    def __repr__(self):
+    def __repr__(self, opposite=False):
         """Represent the description as a string.
 
         :return : String
         """
         descr=""
+        if opposite:
+            descr = descr + "NOT ("
         for s in self.Descriptors:
+            # If the descriptor is numeric, the string will be formed by the attribute name and the lower and upper bound
             if s.is_numeric:
                 low = str(s.low_bound) if s.low_bound is not None else "-infinite"
                 up = str(s.up_bound) if s.up_bound is not None else "+infinite"
                 descr = descr + s.attribute_name + " = (" + low +", "+ up +"] AND "
+            # If the descriptor is not numeric, the string will be formed by the attribute name and the attribute value
             else:
                 descr = descr+ s.attribute_name+' = "'+str(s.attribute_value)+'" AND '
         if descr != "":
             descr = descr[:-4]
+        if opposite:
+            descr = descr + ")"
         return descr
 
-    def to_string(self):
-        return self.__repr__()
+    def to_string(self, opposite=False):
+        return self.__repr__(opposite=opposite)
 
     def __lt__(self, other):
         """Compare the current description (self) with another description (other).
