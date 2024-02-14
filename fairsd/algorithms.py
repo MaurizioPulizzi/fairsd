@@ -254,10 +254,12 @@ class ResultSet:
         """
         descriptions = []
         sg_features = []
-        for ix in range(len(result_set_df)):
-            desc = self.descriptions_list[int(ix)]
+        result_set_df.reset_index(inplace=True)
+        for ix, row in result_set_df.iterrows():
+            i = row['index']
+            desc = self.descriptions_list[int(i)]
             descriptions.append(desc.__repr__())
-            sg_feature = self.sg_feature(int(ix), X).to_json()
+            sg_feature = self.sg_feature(int(i), X).to_json()
             sg_features.append(sg_feature)
 
         return {
