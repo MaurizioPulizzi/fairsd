@@ -1,3 +1,4 @@
+from typing import List
 import numpy as np
 import pandas as pd
 import fairlearn.metrics as flm
@@ -212,7 +213,7 @@ class ResultSet:
         index = [str(x) for x in range(len(self.descriptions_list))]
         return pd.DataFrame(lod, index=index, columns=columns)
 
-    def get_description(self, sg_index):
+    def get_description(self, sg_index) -> List[Description]:
         if (sg_index >= len(self.descriptions_list) or sg_index < 0):
             raise RuntimeError("The requested subgroup doesn't exists")
         return self.descriptions_list[sg_index]
@@ -242,6 +243,28 @@ class ResultSet:
 
     def to_string(self):
         return self.__repr__()
+    
+    def to_json(self, X: pd.DataFrame, metric: str, result_set_df: pd.DataFrame):
+        """Save string representation of descriptions and sg_feature boolean series to json
+
+        :param X: pandas DataFrame representing the dataset
+        :param metric: string, name of the metric used to evaluate the subgroups
+        :param result_set_df: pandas DataFrame used for ordering of the results
+        :return: dict
+        """
+        descriptions = []
+        sg_features = []
+        for ix in range(len(result_set_df)):
+            desc = self.descriptions_list[int(ix)]
+            descriptions.append(desc.__repr__())
+            sg_feature = self.sg_feature(int(ix), X).to_json()
+            sg_features.append(sg_feature)
+
+        return {
+            'descriptions': descriptions,
+            'sg_features': sg_features,
+            'metric': metric
+        }
 
 
 class BeamSearch:
@@ -254,7 +277,7 @@ class BeamSearch:
             raise RuntimeError("beam_width must be greater than 0")
         self.beam_width = beam_width
 
-    def execute(self, task):
+    def execute(self, task, method="between_groups"):
         """
         This method execute the Beam Search
 
@@ -276,12 +299,11 @@ class BeamSearch:
         depth = 0
         while depth < task.depth:
             list_of_beam.append(list())
-            #print(depth)
             current_min_quality = 1
             for last_sg in list_of_beam[depth]:
                 ss = task.search_space.extract_search_space(task.data, task.discretizer, current_description=last_sg)
                 for sel in ss:
-                    new_Descriptors = list(last_sg.Descriptors)
+                    new_Descriptors = list(last_sg.descriptors)
                     new_Descriptors.append(sel)
                     new_description=Description(new_Descriptors)
 
@@ -291,16 +313,16 @@ class BeamSearch:
 
                     sg_belonging_feature = new_description.to_boolean_array(task.data, set_attributes=True)
                     # check min support
-                    if new_description.size(task.data)<task.min_support \
-                        or new_description.size(task.data)<task.min_support_ratio*task.data.shape[0] \
-                            or new_description.size(task.data)>task.max_support_ratio*task.data.shape[0]:
+                    if new_description.size(task.data) < task.min_support \
+                        or new_description.size(task.data) < task.min_support_ratio*task.data.shape[0] \
+                            or new_description.size(task.data) > task.max_support_ratio*task.data.shape[0]:
                         continue
                     # evaluate subgroup
                     if task.there_is_y_pred:
-                        quality=task.qf(y_true = task.data['y_true'], y_pred = task.data['y_pred'],
-                                        sensitive_features =sg_belonging_feature)
+                        quality = task.qf(y_true = task.data['y_true'], method=method, y_pred=task.data['y_pred'],
+                                        sensitive_features=sg_belonging_feature)
                     else:
-                        quality = task.qf(y_true=task.data['y_true'], sensitive_features=sg_belonging_feature)
+                        quality = task.qf(y_true = task.data['y_true'], method=method, sensitive_features=sg_belonging_feature)
                     if quality < task.min_quality:
                         continue
                     new_description.set_quality(quality)
@@ -350,9 +372,10 @@ class DSSD:
         self.beam_width=beam_width
         self.a= 1-a # for future calculations it is more practical to memorize 1-a
 
-    def execute(self, task):
+    def execute(self, task, method="between_groups"):
         """
         :param task: SubgroupDiscoveryTask object
+        :param method: string, method of evaluation of the subgroups, can be "between_groups" or "to_overall", as defined in fairlearn.metrics
         :return: ResultSet object
 
         Notes
@@ -368,7 +391,7 @@ class DSSD:
 
         # PHASE 1 - MODIFIED BEAM SEARCH
         list_of_beam = list()
-        self.redundancy_aware_beam_search(list_of_beam, task)
+        self.redundancy_aware_beam_search(list_of_beam, task, method)
 
         # PHASE 2 - DOMINANCE PRUNING
         subgroups = list()
@@ -397,7 +420,7 @@ class DSSD:
         final_sgs.sort(reverse=True)
         return ResultSet(final_sgs, task.data.shape[0])
 
-    def redundancy_aware_beam_search(self, list_of_beam, task):
+    def redundancy_aware_beam_search(self, list_of_beam, task, method="between_groups"):
         """
         Parameters
         ----------
@@ -406,6 +429,7 @@ class DSSD:
             The beam of level i will be a list of Description objects where each description is composed of
             i Descriptors.
         task : SubgroupDiscoveryTask
+        method : string, method of evaluation of the subgroups, can be "between_groups" or "to_overall", as defined in fairlearn.metrics
 
         Notes
         -----
@@ -434,7 +458,7 @@ class DSSD:
 
                 # generation of all the possible extensions of the description last_sg
                 for sel in ss:
-                    new_Descriptors = list(last_sg.Descriptors)
+                    new_Descriptors = list(last_sg.descriptors)
                     new_Descriptors.append(sel)
                     new_description = Description(new_Descriptors)
 
@@ -453,15 +477,15 @@ class DSSD:
                     sel_feature = Description([sel]).to_boolean_array(task.data)
                     # evaluate subgroup
                     if task.there_is_y_pred:
-                        quality = task.qf(y_true=task.data['y_true'], y_pred=task.data['y_pred'],
+                        quality = task.qf(y_true = task.data['y_true'], method=method, y_pred=task.data['y_pred'],
                                           sensitive_features=sg_belonging_feature)
                         ### to evaluate
-                        sel_quality = task.qf(y_true=task.data['y_true'], y_pred=task.data['y_pred'],
+                        sel_quality = task.qf(y_true = task.data['y_true'], method=method, y_pred=task.data['y_pred'],
                                           sensitive_features=sel_feature)
                     else:
-                        quality = task.qf(y_true=task.data['y_true'], sensitive_features=sg_belonging_feature)
+                        quality = task.qf(y_true = task.data['y_true'], method=method, sensitive_features=sg_belonging_feature)
                         ### to evaluate
-                        sel_quality = task.qf(y_true=task.data['y_true'], sensitive_features=sel_feature)
+                        sel_quality = task.qf(y_true = task.data['y_true'], method=method, sensitive_features=sel_feature)
 
                     # if the quality of the new descriptor has deteriorated by merging the new descriptor
                     # with the current description, we do not add the new descriptor
@@ -507,7 +531,7 @@ class DSSD:
             logging.debug(" ")
             depth += 1
 
-    def dominance_pruning(self, subgroups, pruned_sgs, task):
+    def dominance_pruning(self, subgroups, pruned_sgs, task, method="between_groups"):
         """
         Parameters
         ----------
@@ -516,6 +540,7 @@ class DSSD:
         pruned_sgs : list
                 the generalized subgroups (description objects) are inserted in this list
         task : SubgroupDiscoveryTask
+        method : string, method of evaluation of the subgroups, can be "between_groups" or "to_overall", as defined in fairlearn.metrics
         """
 
         for desc in subgroups:
@@ -533,10 +558,10 @@ class DSSD:
 
                 sg_belonging_feature = new_des.to_boolean_array(task.data, set_attributes=True)
                 if task.there_is_y_pred:
-                    quality = task.qf(y_true=task.data['y_true'], y_pred=task.data['y_pred'],
+                    quality = task.qf(y_true = task.data['y_true'], method=method, y_pred=task.data['y_pred'],
                                       sensitive_features=sg_belonging_feature)
                 else:
-                    quality = task.qf(y_true=task.data['y_true'], sensitive_features=sg_belonging_feature)
+                    quality = task.qf(y_true = task.data['y_true'], method=method, sensitive_features=sg_belonging_feature)
 
                 if quality >= desc.get_quality():
                     generalizable=True

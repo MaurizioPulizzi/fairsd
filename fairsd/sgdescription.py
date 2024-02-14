@@ -84,14 +84,14 @@ class Description:
     Semantically it is to be interpreted as the conjunction of all the Descriptors contained in the list:
     a dataset record will match the description if each single Descriptor of the description will match with this record.
     """
-    def __init__(self, Descriptors=None):
+    def __init__(self, descriptors: Descriptor=None):
         """
         :param Descriptors : list of Descriptor
         """
-        if Descriptors == None:
-            self.Descriptors=[]
+        if descriptors == None:
+            self.descriptors=[]
         else:
-            self.Descriptors=Descriptors
+            self.descriptors=descriptors
         self.support = None
 
     def __repr__(self, opposite=False):
@@ -102,7 +102,7 @@ class Description:
         descr=""
         if opposite:
             descr = descr + "NOT ("
-        for s in self.Descriptors:
+        for s in self.descriptors:
             # If the descriptor is numeric, the string will be formed by the attribute name and the lower and upper bound
             if s.is_numeric:
                 low = str(s.low_bound) if s.low_bound is not None else "-infinite"
@@ -131,7 +131,7 @@ class Description:
         elif self.support != other.support:
             return self.support < other.support
         else:
-            return len(self.Descriptors) > len(other.Descriptors)
+            return len(self.descriptors) > len(other.descriptors)
 
     def to_boolean_array(self, dataset, set_attributes=False):
         """
@@ -150,14 +150,14 @@ class Description:
         """
         s = np.full(dataset.shape[0], True)
         s = pd.Series(s)
-        for i in range(0, len(self.Descriptors)):
-            if self.Descriptors[i].is_numeric:
-                if self.Descriptors[i].low_bound is not None:
-                    s = s & (dataset[self.Descriptors[i].attribute_name] > self.Descriptors[i].low_bound)
-                if self.Descriptors[i].up_bound is not None:
-                    s = s & (dataset[self.Descriptors[i].attribute_name] <= self.Descriptors[i].up_bound)
+        for i in range(0, len(self.descriptors)):
+            if self.descriptors[i].is_numeric:
+                if self.descriptors[i].low_bound is not None:
+                    s = s & (dataset[self.descriptors[i].attribute_name] > self.descriptors[i].low_bound)
+                if self.descriptors[i].up_bound is not None:
+                    s = s & (dataset[self.descriptors[i].attribute_name] <= self.descriptors[i].up_bound)
             else:
-                s =( (s) & (dataset[self.Descriptors[i].attribute_name] == self.Descriptors[i].attribute_value))
+                s =( (s) & (dataset[self.descriptors[i].attribute_name] == self.descriptors[i].attribute_value))
 
         if set_attributes:
             #set size, relative size and target share
@@ -182,12 +182,12 @@ class Description:
         :return: list of String
         """
         attributes = []
-        for sel in self.Descriptors:
+        for sel in self.descriptors:
             attributes.append(sel.get_attribute_name())
         return attributes
 
     def get_Descriptors(self):
-        return self.Descriptors
+        return self.descriptors
 
     def is_present_in(self, beam):
         """
@@ -201,8 +201,8 @@ class Description:
         """
         for descr in beam:
             equals=True
-            for sel in self.Descriptors:
-                if sel.is_present_in(descr.Descriptors) == False:
+            for sel in self.descriptors:
+                if sel.is_present_in(descr.descriptors) == False:
                     equals = False
                     break
             if equals:
