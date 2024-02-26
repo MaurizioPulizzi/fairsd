@@ -10,7 +10,7 @@ class MDLP:
     This parameter is interpret as an hard constraint: only cut points that produce buckets larger than
     min_groupSize will be returned.
     Another parameter that is possible to set is "force". If this parameter is setted to True the findCutPoints
-    method will retur at list one cut point. This unless even a cut point can be found which produces two subgroups
+    method will return at least one cut point. This unless even a cut point can be found which produces two subgroups
     with a size greater than min_groupSize and with class partition entropy less than the entropy of the entire set.
 
     """
@@ -45,7 +45,7 @@ class MDLP:
 
     def find_partitions(self, df, total_size, total_sum, force=False):
         """
-        This is a private class function. It works in a recursive manner.
+        This is a private class function. It works in a recursive manner. 
 
         Parameters
         ----------
@@ -79,8 +79,8 @@ class MDLP:
             loc = df.iloc[i]
             sum += loc['sum']
             count += loc['count']
-            if loc['prop'] == df.iloc[i + 1]['prop'] or count < self.min_groupsize or (
-                    total_size - count) < self.min_groupsize:
+            if loc['prop'] == df.iloc[i + 1]['prop'] or count < self.min_groupsize or \
+                (total_size - count) < self.min_groupsize:
                 continue
 
             # cakculate CPE cut point

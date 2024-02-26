@@ -1,4 +1,4 @@
-import fairsd.discretization as discr
+from .discretization import MDLP, EqualFrequency, EqualWidth
 from .sgdescription import Description
 from .sgdescription import Descriptor
 
@@ -100,7 +100,7 @@ class SearchSpace:
         if current_description is None:
             current_description = Description()
         to_exclude = current_description.get_attributes()
-        if len(to_exclude) == 0:
+        if len(to_exclude) == 0 and self.sensitiive_features is not None:
             to_exclude = [i for i in list(dataset.columns) if i not in self.sensitiive_features]
         Descriptors = []
         for Descriptor in self.nominal_Descriptors:
@@ -131,14 +131,14 @@ class Discretizer:
         self.discretization_type = discretization_type
         if discretization_type =='mdlp':
             self.supervised = True
-            self.discretizer =discr.MDLP(min_groupsize, force=True)
+            self.discretizer = MDLP(min_groupsize, force=True)
             self.target = target
         elif discretization_type =='equalfreq':
             self.supervised = False
-            self.discretizer = discr.EqualFrequency(min_groupsize, num_bins)
+            self.discretizer = EqualFrequency(min_groupsize, num_bins)
         elif discretization_type =='equalwidth':
             self.supervised = False
-            self.discretizer = discr.EqualWidth(min_groupsize, num_bins)
+            self.discretizer = EqualWidth(min_groupsize, num_bins)
         else:
             raise RuntimeError('discretization_type must be "mdlp" OR "equalfreq" OR "equalwidth"')
 
