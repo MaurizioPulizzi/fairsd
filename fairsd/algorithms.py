@@ -255,8 +255,8 @@ class ResultSet:
         descriptions = []
         sg_features = []
         result_set_df.reset_index(inplace=True)
-        for ix, row in result_set_df.iterrows():
-            i = row['index']
+        for _, row in result_set_df.iterrows():
+            i = row['index'] # The original subgroup index might not be the same as the index in the result set df
             desc = self.descriptions_list[int(i)]
             descriptions.append(desc.__repr__())
             sg_feature = self.sg_feature(int(i), X).to_json()
