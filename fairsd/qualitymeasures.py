@@ -1,10 +1,12 @@
 from abc import ABC, abstractmethod
 
+
 class QualityFunction(ABC):
     """Abstract class.
 
     If the user wants to create a customized quality function, it is recommended to extend this class
     """
+
     @abstractmethod
     def evaluate(self, y_true, y_pred, sensitive_features):
         """Evaluate the quality of a description.
@@ -31,4 +33,4 @@ class EqualOpportunityDiff(QualityFunction):
         s1y_true = (y_true & sensitive_features).sum()
         s1y_true = 1 if s1y_true == 0 else s1y_true
         p_s1 = (y_true & y_pred & sensitive_features).sum() / s1y_true
-        return p_s0-p_s1
+        return p_s0 - p_s1

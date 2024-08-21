@@ -1,0 +1,46 @@
+exclude = [
+    ".direnv",
+    ".git",
+    ".mypy_cache",
+    ".nox",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+]
+
+## Settings 
+line-length = 100
+
+lint.select = [
+    "E",  # Default: Error
+    "F",  # Default: pyflakes
+    "B",  # flake8-bugbear
+    "I",  # isort
+    "S",  # bandit
+    # "N",  # pep8-naming
+    "YTT", # flake8-2020
+]
+
+# Never enforce E501 (line length) and S106, and S311 cryptography checks
+lint.ignore = ["E501", "S105", "S106", "S311"]
+
+# Avoid trying to fix flake8-bugbear ("B") violations.
+lint.unfixable = ["B"]
+
+# Ignore `E402` (import violations) in all `__init__.py` files, and F401
+[lint.per-file-ignores]
+"__init__.py" = ["E402", "F401"]
+"__main__.py" = ["S104"]
+"searchspace.py" = ["F402"]
+"test/**/*.py" = [
+    "S101", # Allow asserts in tests
+    "ARG", # Unused function args 
+    "B017", # Raise generic exception
+]

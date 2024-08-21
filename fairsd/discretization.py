@@ -1,6 +1,8 @@
-import pandas as pd
 import math
+
 import numpy as np
+import pandas as pd
+
 
 class MDLP:
     """
@@ -10,11 +12,12 @@ class MDLP:
     This parameter is interpret as an hard constraint: only cut points that produce buckets larger than
     min_groupSize will be returned.
     Another parameter that is possible to set is "force". If this parameter is setted to True the findCutPoints
-    method will retur at list one cut point. This unless even a cut point can be found which produces two subgroups
+    method will return at least one cut point. This unless even a cut point can be found which produces two subgroups
     with a size greater than min_groupSize and with class partition entropy less than the entropy of the entire set.
 
     """
-    def __init__(self, min_groupsize = 1, force=False):
+
+    def __init__(self, min_groupsize=1, force=False):
         """
         :param min_groupsize: int
         :param force: boolean
@@ -31,13 +34,13 @@ class MDLP:
             if the function returns the cut points [c1, c2, ..., cn], with c1<c2<...<cn, the feature can be discretized
             by creating n+1 buckets: (-infinite, c1], (c1, c2], ..., (cn-1, cn], (cn, +infinite)
         """
-        df = pd.DataFrame({'x':x, 'y':y})
+        df = pd.DataFrame({"x": x, "y": y})
         total_size = df.shape[0]
 
-        df=df.groupby('x')['y'].agg(['sum','count'])
+        df = df.groupby("x")["y"].agg(["sum", "count"])
         df.reset_index(inplace=True)
-        total_sum=df['sum'].sum()
-        df['prop'] = df['sum'] / df['count']
+        total_sum = df["sum"].sum()
+        df["prop"] = df["sum"] / df["count"]
 
         cut_points = self.find_partitions(df, total_size, total_sum, self.force)
         cut_points.sort()
@@ -74,13 +77,16 @@ class MDLP:
         partition_sum = 0
         partition_count = 0
 
-        #find best candidate cut point
+        # find best candidate cut point
         for i in range(0, df.shape[0] - 1):
             loc = df.iloc[i]
-            sum += loc['sum']
-            count += loc['count']
-            if loc['prop'] == df.iloc[i + 1]['prop'] or count < self.min_groupsize or (
-                    total_size - count) < self.min_groupsize:
+            sum += loc["sum"]
+            count += loc["count"]
+            if (
+                loc["prop"] == df.iloc[i + 1]["prop"]
+                or count < self.min_groupsize
+                or (total_size - count) < self.min_groupsize
+            ):
                 continue
 
             # cakculate CPE cut point
@@ -101,7 +107,7 @@ class MDLP:
             if cpe < min_cpe:
                 min_cpe = cpe
                 partition_index = i
-                partition_x = loc['x']
+                partition_x = loc["x"]
                 partition_sum = sum
                 partition_count = count
                 partition_entS0 = entS0
@@ -109,7 +115,7 @@ class MDLP:
         if min_cpe == total_size:
             return []
 
-        #test MDLP condition
+        # test MDLP condition
         pc1 = total_sum / total_size
         pc0 = 1 - pc1
         pc1_ = pc1 if pc1 != 0 else 1
@@ -123,17 +129,23 @@ class MDLP:
         c1 = 2 if (remained_pos == 0 or remained_pos == total_rem) else 1
         delta = math.log2(9) - c0 * partition_entS0 - c1 * partition_entS1
 
-        delta = math.log2(7) -( 2*entS -c0 * partition_entS0 - c1 * partition_entS1)
+        delta = math.log2(7) - (2 * entS - c0 * partition_entS0 - c1 * partition_entS1)
 
-        if (gain <= ((math.log2(total_size - 1) + delta) / total_size)):
+        if gain <= ((math.log2(total_size - 1) + delta) / total_size):
             if force:
                 return [partition_x]
             return []
 
-        #recoursive splitting
-        left_partitions = self.find_partitions(df.iloc[:(partition_index+1)], partition_count, partition_sum)
-        right_partitions= self.find_partitions(df.iloc[(partition_index+1):], (total_size-partition_count), (total_sum-partition_sum))
-        a= [partition_x]+ left_partitions + right_partitions
+        # recoursive splitting
+        left_partitions = self.find_partitions(
+            df.iloc[: (partition_index + 1)], partition_count, partition_sum
+        )
+        right_partitions = self.find_partitions(
+            df.iloc[(partition_index + 1) :],
+            (total_size - partition_count),
+            (total_sum - partition_sum),
+        )
+        a = [partition_x] + left_partitions + right_partitions
         return a
 
 
@@ -141,6 +153,7 @@ class EqualFrequency:
     """
     This class find the cut points to discretize a numerical feature using an approximate equal frequency discretization.
     """
+
     def __init__(self, min_bin_size=1, num_bins=0):
         """
         Parameters
@@ -169,11 +182,11 @@ class EqualFrequency:
         :param x: numpy array or pandas series
         :return: list of (ascending) ordered cut points
         """
-        #determination of the number of bins
-        if self.num_bins >1:
-            num_bins = min(self.num_bins, int(x.size/(self.min_group_size*1.2)))
+        # determination of the number of bins
+        if self.num_bins > 1:
+            num_bins = min(self.num_bins, int(x.size / (self.min_group_size * 1.2)))
         else:
-            num_bins = int(x.size/(self.min_group_size*1.2))
+            num_bins = int(x.size / (self.min_group_size * 1.2))
         if num_bins < 2:
             return []
 
@@ -183,21 +196,23 @@ class EqualFrequency:
             x = x.to_numpy()
         val, counts = np.unique(x, return_counts=True)
 
-        quantiles = [] #actually this array will contains quantiles * x.size
-        sum =0
+        quantiles = []  # actually this array will contains quantiles * x.size
+        sum = 0
         for c in counts:
-            sum = sum+c
+            sum = sum + c
             quantiles.append(sum)
 
         up_index = 0
         low_index = 0
-        current_quantile=avg_group_size #again, is quantile * x.size
+        current_quantile = avg_group_size  # again, is quantile * x.size
 
         cut_indexes = []
-        #for each expected quantile, find his approximation
-        while current_quantile < (sum-avg_group_size/2): # sum is equal to x.size
-            up_index, low_index = self.findApproximationIndexex(up_index, low_index, current_quantile, quantiles)
-            '''
+        # for each expected quantile, find his approximation
+        while current_quantile < (sum - avg_group_size / 2):  # sum is equal to x.size
+            up_index, low_index = self.findApproximationIndexex(
+                up_index, low_index, current_quantile, quantiles
+            )
+            """
             # this commented code use the cut point that best approximates the expected quantile
             num_up = quantiles[up_index] - current_quantile
             num_low = current_quantile - quantiles[low_index]
@@ -208,7 +223,7 @@ class EqualFrequency:
             else:
                 if low_index not in cut_indexes:
                     cut_indexes.append(low_index)
-            '''
+            """
 
             ### here we always choose an approximation by excess of the expected quantile.
             # This consistency can help create more similarly sized bins
@@ -222,7 +237,7 @@ class EqualFrequency:
         last_quantile = 0
         for i in cut_indexes:
             cut_points.append(val[i])
-            bins_size.append(quantiles[i]-last_quantile)
+            bins_size.append(quantiles[i] - last_quantile)
             last_quantile = quantiles[i]
         bins_size.append(sum - last_quantile)
 
@@ -230,7 +245,7 @@ class EqualFrequency:
         self.mergeSmallBins(cut_points, bins_size)
         return cut_points
 
-    def findApproximationIndexex(self,up_index, low_index, current_quantile, quantiles):
+    def findApproximationIndexex(self, up_index, low_index, current_quantile, quantiles):
         """
         :param up_index: int
         :param low_index: int
@@ -243,14 +258,13 @@ class EqualFrequency:
         new_up_i = up_index
         while new_up_i < len(quantiles):
             if quantiles[new_up_i] < current_quantile:
-                new_up_i+=1
+                new_up_i += 1
             else:
                 break
         new_low_i = low_index
         if new_up_i > up_index:
-            new_low_i= new_up_i-1
+            new_low_i = new_up_i - 1
         return new_up_i, new_low_i
-
 
     def mergeSmallBins(self, cut_points, bins_size):
         """
@@ -262,7 +276,7 @@ class EqualFrequency:
         min_smallbin = self.min_group_size
         min_index = 0
         for i in range(len(bins_size)):
-            if bins_size[i]<min_smallbin:
+            if bins_size[i] < min_smallbin:
                 min_smallbin = bins_size[i]
                 min_index = i
 
@@ -274,19 +288,19 @@ class EqualFrequency:
         next_size = 0
         if min_index > 0:
             previous_size = bins_size[min_index - 1]
-        if min_index < (len(bins_size)-1):
+        if min_index < (len(bins_size) - 1):
             next_size = bins_size[min_index + 1]
 
-        if previous_size == 0 and next_size ==0:
+        if previous_size == 0 and next_size == 0:
             return
 
         if (previous_size == 0) or (next_size > 0 and next_size < previous_size):
-            bins_size[min_index+1] = bins_size[min_index+1]+bins_size[min_index]
+            bins_size[min_index + 1] = bins_size[min_index + 1] + bins_size[min_index]
             cut_points.pop(min_index)
             bins_size.pop(min_index)
         else:
             bins_size[min_index - 1] = bins_size[min_index - 1] + bins_size[min_index]
-            cut_points.pop(min_index-1)
+            cut_points.pop(min_index - 1)
             bins_size.pop(min_index)
 
         self.mergeSmallBins(cut_points, bins_size)
@@ -294,8 +308,9 @@ class EqualFrequency:
 
 class EqualWidth:
     """
-        This class find the cut points to discretize a numerical feature using the equal width discretization.
-        """
+    This class find the cut points to discretize a numerical feature using the equal width discretization.
+    """
+
     def __init__(self, min_bins_size=1, num_bins=0):
         """
         Parameters
@@ -328,10 +343,10 @@ class EqualWidth:
         if isinstance(x, pd.Series):
             x = x.to_numpy()
         minim = x.min()
-        bin_width = (x.max() - minim)/num_bins
+        bin_width = (x.max() - minim) / num_bins
         cut_points = []
         current_cut = minim + bin_width
-        for i in range(1, num_bins):
+        for _ in range(1, num_bins):
             cut_points.append(current_cut)
             current_cut = current_cut + bin_width
         return cut_points
